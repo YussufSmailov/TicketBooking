@@ -19,4 +19,7 @@ public class Movie {
     private String title;
     private Integer durationMin;
     private String ageRating;
+
+    @OneToOne(mappedBy = "movie", cascade = CascadeType.ALL)
+    private MovieDetails details;
 }

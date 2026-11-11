@@ -1,52 +1,52 @@
 import { useEffect, useState } from "react";
-import { getData, postData, putData, deleteData } from "./adminApi";
+import FieldError from "../components/FieldError";
 import SeatGroupForm from "./SeatGroupForm";
+import { addConcertSeats, deleteConcert, getConcerts, saveConcert } from "./adminApi";
+import { todayString } from "../validation";
 
-const emptyConcert = { artist: "", title: "", venue: "", city: "", concertDate: "", concertTime: "" };
+const zones = ["Fan zone", "VIP", "Tribune"];
+
+const emptyConcert = {
+  artist: "",
+  title: "",
+  venue: "",
+  city: "Almaty",
+  concertDate: "",
+  concertTime: "",
+  posterUrl: "",
+  description: ""
+};
 
 function ConcertsAdmin() {
   const [concerts, setConcerts] = useState([]);
   const [form, setForm] = useState(emptyConcert);
   const [editingId, setEditingId] = useState(null);
-  const [message, setMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [seatsConcertId, setSeatsConcertId] = useState(null);
   const [error, setError] = useState("");
 
-  async function loadData() {
-    try {
-      setConcerts(await getData("/concert/concerts"));
-    } catch {
-      setError("Не удалось загрузить данные. Проверьте, что backend запущен.");
-    }
+  function loadConcerts() {
+    getConcerts().then(setConcerts).catch((e) => setError(e.message));
   }
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(loadConcerts, []);
 
-  function showResult(text) {
-    setMessage(text);
+  function changeField(name, value) {
+    setForm({ ...form, [name]: value });
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
     setError("");
-    loadData();
-  }
-
-  function handleChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  }
-
-  async function saveConcert(e) {
-    e.preventDefault();
+    setFieldErrors({});
     try {
-      if (editingId === null) {
-        await postData("/concert/concerts", form);
-        showResult("Концерт добавлен. Теперь добавьте к нему места.");
-      } else {
-        await putData(`/concert/concerts/${editingId}`, form);
-        showResult("Концерт изменён");
-      }
+      await saveConcert(editingId, form);
       setForm(emptyConcert);
       setEditingId(null);
-    } catch (err) {
-      setError(err.message);
+      loadConcerts();
+    } catch (e) {
+      setError(e.message);
+      setFieldErrors(e.fieldErrors || {});
     }
   }
 
@@ -58,103 +58,93 @@ function ConcertsAdmin() {
       venue: concert.venue,
       city: concert.city,
       concertDate: concert.concertDate,
-      concertTime: concert.concertTime.slice(0, 5)
+      concertTime: concert.concertTime.slice(0, 5),
+      posterUrl: concert.posterUrl || "",
+      description: concert.description || ""
     });
   }
 
-  function cancelEdit() {
-    setEditingId(null);
-    setForm(emptyConcert);
-  }
-
   async function removeConcert(id) {
-    if (!window.confirm("Удалить концерт и все его места?")) return;
+    setError("");
     try {
-      await deleteData(`/concert/concerts/${id}`);
-      showResult("Концерт удалён");
-    } catch (err) {
-      setError("Нельзя удалить концерт, на который уже есть брони.");
+      await deleteConcert(id);
+      loadConcerts();
+    } catch (e) {
+      setError(e.message);
     }
   }
 
-  const concertOptions = concerts.map((concert) => ({
-    id: concert.concertId,
-    label: `${concert.artist}, ${concert.concertDate}`
-  }));
-
   return (
-    <div>
-      {message && <p className="success">{message}</p>}
+    <div className="admin-section">
       {error && <p className="error">{error}</p>}
 
-      <section className="admin-section">
-        <h2>{editingId === null ? "Новый концерт" : "Изменить концерт"}</h2>
-        <form className="admin-form" onSubmit={saveConcert}>
-          <label>
-            Артист
-            <input name="artist" value={form.artist} onChange={handleChange} required />
-          </label>
-          <label>
-            Название шоу
-            <input name="title" value={form.title} onChange={handleChange} required />
-          </label>
-          <label>
-            Площадка
-            <input name="venue" value={form.venue} onChange={handleChange} required />
-          </label>
-          <label>
-            Город
-            <input name="city" value={form.city} onChange={handleChange} required />
-          </label>
-          <label>
-            Дата
-            <input name="concertDate" type="date" value={form.concertDate} onChange={handleChange} required />
-          </label>
-          <label>
-            Время
-            <input name="concertTime" type="time" value={form.concertTime} onChange={handleChange} required />
-          </label>
-          <div className="form-buttons">
-            <button className="primary-button" type="submit">
-              {editingId === null ? "Добавить концерт" : "Сохранить"}
+      <h3>{editingId ? "Изменить концерт" : "Новый концерт"}</h3>
+      <form className="admin-form" onSubmit={handleSubmit}>
+        <label>
+          Исполнитель
+          <input value={form.artist} maxLength={100} onChange={(e) => changeField("artist", e.target.value)} required />
+          <FieldError message={fieldErrors.artist} />
+        </label>
+        <label>
+          Название
+          <input value={form.title} maxLength={150} onChange={(e) => changeField("title", e.target.value)} required />
+          <FieldError message={fieldErrors.title} />
+        </label>
+        <label>
+          Площадка
+          <input value={form.venue} maxLength={100} onChange={(e) => changeField("venue", e.target.value)} required />
+          <FieldError message={fieldErrors.venue} />
+        </label>
+        <label>
+          Город
+          <input value={form.city} maxLength={50} onChange={(e) => changeField("city", e.target.value)} required />
+          <FieldError message={fieldErrors.city} />
+        </label>
+        <label>
+          Дата
+          <input type="date" min={todayString()} value={form.concertDate} onChange={(e) => changeField("concertDate", e.target.value)} required />
+          <FieldError message={fieldErrors.concertDate} />
+        </label>
+        <label>
+          Время
+          <input type="time" value={form.concertTime} onChange={(e) => changeField("concertTime", e.target.value)} required />
+          <FieldError message={fieldErrors.concertTime} />
+        </label>
+        <label>
+          Ссылка на постер
+          <input type="url" value={form.posterUrl} maxLength={300} placeholder="https://picsum.photos/seed/name/400/600" onChange={(e) => changeField("posterUrl", e.target.value)} />
+          <FieldError message={fieldErrors.posterUrl} />
+        </label>
+        <label className="admin-wide">
+          Описание
+          <textarea rows={3} value={form.description} maxLength={2000} onChange={(e) => changeField("description", e.target.value)} />
+          <FieldError message={fieldErrors.description} />
+        </label>
+        <div className="admin-buttons">
+          <button className="primary-button" type="submit">{editingId ? "Сохранить" : "Добавить"}</button>
+          {editingId && (
+            <button className="secondary-button" type="button" onClick={() => { setEditingId(null); setForm(emptyConcert); }}>
+              Отмена
             </button>
-            {editingId !== null && (
-              <button className="secondary-button" type="button" onClick={cancelEdit}>Отмена</button>
-            )}
-          </div>
-        </form>
-
-        <div className="table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr><th>ID</th><th>Артист</th><th>Шоу</th><th>Площадка</th><th>Дата</th><th></th></tr>
-            </thead>
-            <tbody>
-              {concerts.map((concert) => (
-                <tr key={concert.concertId}>
-                  <td>{concert.concertId}</td>
-                  <td>{concert.artist}</td>
-                  <td>{concert.title}</td>
-                  <td>{concert.venue}, {concert.city}</td>
-                  <td>{concert.concertDate} {concert.concertTime.slice(0, 5)}</td>
-                  <td className="row-buttons">
-                    <button className="secondary-button" onClick={() => startEdit(concert)}>Изменить</button>
-                    <button className="danger-button" onClick={() => removeConcert(concert.concertId)}>Удалить</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          )}
         </div>
-      </section>
+      </form>
 
-      <SeatGroupForm
-        title="Добавить зону мест на концерт"
-        events={concertOptions}
-        urlFor={(id) => `/concert/concerts/${id}/seats`}
-        nameLabel="Зона"
-        namePlaceholder="VIP"
-      />
+      <ul className="admin-list">
+        {concerts.map((concert) => (
+          <li key={concert.concertId}>
+            <span>{concert.artist} — {concert.title}, {concert.city}, {concert.concertDate}</span>
+            <span className="admin-buttons">
+              <button className="secondary-button" onClick={() => setSeatsConcertId(concert.concertId)}>Места</button>
+              <button className="secondary-button" onClick={() => startEdit(concert)}>Изменить</button>
+              <button className="danger-button" onClick={() => removeConcert(concert.concertId)}>Удалить</button>
+            </span>
+            {seatsConcertId === concert.concertId && (
+              <SeatGroupForm zoneLabel="Зона" zoneOptions={zones} onSubmit={(row) => addConcertSeats(concert.concertId, row)} />
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -1,7 +1,9 @@
 package com.ticketbooking.controller;
 
+import com.ticketbooking.dto.UserRequest;
 import com.ticketbooking.entity.User;
 import com.ticketbooking.service.UserService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -9,7 +11,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin(origins = "*")
 public class UserController {
 
     private final UserService userService;
@@ -30,7 +31,7 @@ public class UserController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public User create(@RequestBody User user) {
-        return userService.create(user);
+    public User create(@Valid @RequestBody UserRequest request) {
+        return userService.create(request);
     }
 }

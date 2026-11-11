@@ -1,230 +1,228 @@
 import { useEffect, useState } from "react";
-import { getData, postData, putData, deleteData } from "./adminApi";
+import FieldError from "../components/FieldError";
 import SeatGroupForm from "./SeatGroupForm";
+import { addSessionSeats, createSession, deleteMovie, deleteSession, getMovies, getSessions, saveMovie } from "./adminApi";
+import { todayString } from "../validation";
 
-const emptyMovie = { title: "", durationMin: "", ageRating: "" };
-const emptySession = { movieId: "", sessionDate: "", sessionTime: "", hallNumber: "" };
+const ageRatings = ["0+", "6+", "12+", "14+", "16+", "18+", "21+"];
+
+const emptyMovie = {
+  title: "",
+  durationMin: "",
+  ageRating: "12+",
+  genre: "",
+  releaseDate: "",
+  premiere: false,
+  posterUrl: "",
+  description: ""
+};
+const emptySession = { movieId: "", sessionDate: "", sessionTime: "", hallNumber: "1" };
 
 function MoviesAdmin() {
   const [movies, setMovies] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [movieForm, setMovieForm] = useState(emptyMovie);
   const [editingId, setEditingId] = useState(null);
+  const [movieErrors, setMovieErrors] = useState({});
   const [sessionForm, setSessionForm] = useState(emptySession);
-  const [message, setMessage] = useState("");
+  const [sessionErrors, setSessionErrors] = useState({});
+  const [seatsSessionId, setSeatsSessionId] = useState(null);
   const [error, setError] = useState("");
 
-  async function loadData() {
-    try {
-      setMovies(await getData("/cinema/movies"));
-      setSessions(await getData("/cinema/sessions"));
-    } catch {
-      setError("Не удалось загрузить данные. Проверьте, что backend запущен.");
-    }
+  function loadAll() {
+    getMovies().then(setMovies).catch((e) => setError(e.message));
+    getSessions().then(setSessions).catch((e) => setError(e.message));
   }
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(loadAll, []);
 
-  function showResult(text) {
-    setMessage(text);
+  async function submitMovie(event) {
+    event.preventDefault();
     setError("");
-    loadData();
-  }
-
-  function handleMovieChange(e) {
-    setMovieForm({ ...movieForm, [e.target.name]: e.target.value });
-  }
-
-  function handleSessionChange(e) {
-    setSessionForm({ ...sessionForm, [e.target.name]: e.target.value });
-  }
-
-  async function saveMovie(e) {
-    e.preventDefault();
-    const body = {
-      title: movieForm.title,
-      durationMin: Number(movieForm.durationMin),
-      ageRating: movieForm.ageRating
-    };
-
+    setMovieErrors({});
     try {
-      if (editingId === null) {
-        await postData("/cinema/movies", body);
-        showResult("Фильм добавлен");
-      } else {
-        await putData(`/cinema/movies/${editingId}`, body);
-        showResult("Фильм изменён");
-      }
+      await saveMovie(editingId, {
+        ...movieForm,
+        durationMin: Number(movieForm.durationMin),
+        releaseDate: movieForm.releaseDate || null
+      });
       setMovieForm(emptyMovie);
       setEditingId(null);
-    } catch (err) {
-      setError(err.message);
+      loadAll();
+    } catch (e) {
+      setError(e.message);
+      setMovieErrors(e.fieldErrors || {});
     }
   }
 
   function startEdit(movie) {
     setEditingId(movie.movieId);
-    setMovieForm({ title: movie.title, durationMin: movie.durationMin, ageRating: movie.ageRating });
+    const details = movie.details || {};
+    setMovieForm({
+      title: movie.title,
+      durationMin: String(movie.durationMin),
+      ageRating: movie.ageRating,
+      genre: details.genre || "",
+      releaseDate: details.releaseDate || "",
+      premiere: Boolean(details.premiere),
+      posterUrl: details.posterUrl || "",
+      description: details.description || ""
+    });
   }
 
-  function cancelEdit() {
-    setEditingId(null);
-    setMovieForm(emptyMovie);
+  function changeMovieField(name, value) {
+    setMovieForm({ ...movieForm, [name]: value });
   }
 
   async function removeMovie(id) {
-    if (!window.confirm("Удалить фильм?")) return;
+    setError("");
     try {
-      await deleteData(`/cinema/movies/${id}`);
-      showResult("Фильм удалён");
-    } catch (err) {
-      setError("Нельзя удалить фильм, у которого есть сеансы. Сначала удалите сеансы.");
+      await deleteMovie(id);
+      loadAll();
+    } catch (e) {
+      setError(e.message);
     }
   }
 
-  async function saveSession(e) {
-    e.preventDefault();
+  async function submitSession(event) {
+    event.preventDefault();
+    setError("");
+    setSessionErrors({});
     try {
-      await postData("/cinema/sessions", {
+      await createSession({
+        ...sessionForm,
         movieId: Number(sessionForm.movieId),
-        sessionDate: sessionForm.sessionDate,
-        sessionTime: sessionForm.sessionTime,
         hallNumber: Number(sessionForm.hallNumber)
       });
       setSessionForm(emptySession);
-      showResult("Сеанс добавлен. Теперь добавьте к нему места.");
-    } catch (err) {
-      setError(err.message);
+      loadAll();
+    } catch (e) {
+      setError(e.message);
+      setSessionErrors(e.fieldErrors || {});
     }
   }
 
   async function removeSession(id) {
-    if (!window.confirm("Удалить сеанс и все его места?")) return;
+    setError("");
     try {
-      await deleteData(`/cinema/sessions/${id}`);
-      showResult("Сеанс удалён");
-    } catch (err) {
-      setError("Нельзя удалить сеанс, на который уже есть брони.");
+      await deleteSession(id);
+      loadAll();
+    } catch (e) {
+      setError(e.message);
     }
   }
 
-  const sessionOptions = sessions.map((session) => ({
-    id: session.sessionId,
-    label: `${session.movie.title}, ${session.sessionDate} ${session.sessionTime.slice(0, 5)}, зал ${session.hallNumber}`
-  }));
-
   return (
-    <div>
-      {message && <p className="success">{message}</p>}
+    <div className="admin-section">
       {error && <p className="error">{error}</p>}
 
-      <section className="admin-section">
-        <h2>{editingId === null ? "Новый фильм" : "Изменить фильм"}</h2>
-        <form className="admin-form" onSubmit={saveMovie}>
-          <label>
-            Название
-            <input name="title" value={movieForm.title} onChange={handleMovieChange} required />
-          </label>
-          <label>
-            Длительность, мин
-            <input name="durationMin" type="number" min="1" value={movieForm.durationMin} onChange={handleMovieChange} required />
-          </label>
-          <label>
-            Возрастной рейтинг
-            <input name="ageRating" value={movieForm.ageRating} onChange={handleMovieChange} placeholder="16+" />
-          </label>
-          <div className="form-buttons">
-            <button className="primary-button" type="submit">
-              {editingId === null ? "Добавить фильм" : "Сохранить"}
+      <h3>{editingId ? "Изменить фильм" : "Новый фильм"}</h3>
+      <form className="admin-form" onSubmit={submitMovie}>
+        <label>
+          Название
+          <input value={movieForm.title} maxLength={150} onChange={(e) => setMovieForm({ ...movieForm, title: e.target.value })} required />
+          <FieldError message={movieErrors.title} />
+        </label>
+        <label>
+          Длительность, мин
+          <input type="number" min="1" max="600" value={movieForm.durationMin} onChange={(e) => setMovieForm({ ...movieForm, durationMin: e.target.value })} required />
+          <FieldError message={movieErrors.durationMin} />
+        </label>
+        <label>
+          Возраст
+          <select value={movieForm.ageRating} onChange={(e) => setMovieForm({ ...movieForm, ageRating: e.target.value })} required>
+            {ageRatings.map((rating) => <option key={rating} value={rating}>{rating}</option>)}
+          </select>
+          <FieldError message={movieErrors.ageRating} />
+        </label>
+        <label>
+          Жанр
+          <input value={movieForm.genre} maxLength={50} onChange={(e) => changeMovieField("genre", e.target.value)} />
+          <FieldError message={movieErrors.genre} />
+        </label>
+        <label>
+          Дата выхода
+          <input type="date" value={movieForm.releaseDate} onChange={(e) => changeMovieField("releaseDate", e.target.value)} />
+          <FieldError message={movieErrors.releaseDate} />
+        </label>
+        <label className="checkbox-row">
+          <input type="checkbox" checked={movieForm.premiere} onChange={(e) => changeMovieField("premiere", e.target.checked)} />
+          Премьера
+        </label>
+        <label>
+          Ссылка на постер
+          <input type="url" value={movieForm.posterUrl} maxLength={300} placeholder="https://picsum.photos/seed/name/400/600" onChange={(e) => changeMovieField("posterUrl", e.target.value)} />
+          <FieldError message={movieErrors.posterUrl} />
+        </label>
+        <label className="admin-wide">
+          Описание
+          <textarea rows={3} value={movieForm.description} maxLength={2000} onChange={(e) => changeMovieField("description", e.target.value)} />
+          <FieldError message={movieErrors.description} />
+        </label>
+        <div className="admin-buttons">
+          <button className="primary-button" type="submit">{editingId ? "Сохранить" : "Добавить"}</button>
+          {editingId && (
+            <button className="secondary-button" type="button" onClick={() => { setEditingId(null); setMovieForm(emptyMovie); }}>
+              Отмена
             </button>
-            {editingId !== null && (
-              <button className="secondary-button" type="button" onClick={cancelEdit}>Отмена</button>
+          )}
+        </div>
+      </form>
+
+      <ul className="admin-list">
+        {movies.map((movie) => (
+          <li key={movie.movieId}>
+            <span>{movie.title}, {movie.durationMin} мин, {movie.ageRating}</span>
+            <span className="admin-buttons">
+              <button className="secondary-button" onClick={() => startEdit(movie)}>Изменить</button>
+              <button className="danger-button" onClick={() => removeMovie(movie.movieId)}>Удалить</button>
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <h3>Новый сеанс</h3>
+      <form className="admin-form" onSubmit={submitSession}>
+        <label>
+          Фильм
+          <select value={sessionForm.movieId} onChange={(e) => setSessionForm({ ...sessionForm, movieId: e.target.value })} required>
+            <option value="">Выберите фильм</option>
+            {movies.map((movie) => <option key={movie.movieId} value={movie.movieId}>{movie.title}</option>)}
+          </select>
+          <FieldError message={sessionErrors.movieId} />
+        </label>
+        <label>
+          Дата
+          <input type="date" min={todayString()} value={sessionForm.sessionDate} onChange={(e) => setSessionForm({ ...sessionForm, sessionDate: e.target.value })} required />
+          <FieldError message={sessionErrors.sessionDate} />
+        </label>
+        <label>
+          Время
+          <input type="time" value={sessionForm.sessionTime} onChange={(e) => setSessionForm({ ...sessionForm, sessionTime: e.target.value })} required />
+          <FieldError message={sessionErrors.sessionTime} />
+        </label>
+        <label>
+          Зал
+          <input type="number" min="1" max="20" value={sessionForm.hallNumber} onChange={(e) => setSessionForm({ ...sessionForm, hallNumber: e.target.value })} required />
+          <FieldError message={sessionErrors.hallNumber} />
+        </label>
+        <button className="primary-button" type="submit">Добавить сеанс</button>
+      </form>
+
+      <ul className="admin-list">
+        {sessions.map((session) => (
+          <li key={session.sessionId}>
+            <span>{session.movie.title}: {session.sessionDate} {session.sessionTime.slice(0, 5)}, зал {session.hallNumber}</span>
+            <span className="admin-buttons">
+              <button className="secondary-button" onClick={() => setSeatsSessionId(session.sessionId)}>Места</button>
+              <button className="danger-button" onClick={() => removeSession(session.sessionId)}>Удалить</button>
+            </span>
+            {seatsSessionId === session.sessionId && (
+              <SeatGroupForm onSubmit={(row) => addSessionSeats(session.sessionId, row)} />
             )}
-          </div>
-        </form>
-
-        <div className="table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr><th>ID</th><th>Название</th><th>Длительность</th><th>Рейтинг</th><th></th></tr>
-            </thead>
-            <tbody>
-              {movies.map((movie) => (
-                <tr key={movie.movieId}>
-                  <td>{movie.movieId}</td>
-                  <td>{movie.title}</td>
-                  <td>{movie.durationMin} мин</td>
-                  <td>{movie.ageRating}</td>
-                  <td className="row-buttons">
-                    <button className="secondary-button" onClick={() => startEdit(movie)}>Изменить</button>
-                    <button className="danger-button" onClick={() => removeMovie(movie.movieId)}>Удалить</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="admin-section">
-        <h2>Новый сеанс</h2>
-        <form className="admin-form" onSubmit={saveSession}>
-          <label>
-            Фильм
-            <select name="movieId" value={sessionForm.movieId} onChange={handleSessionChange} required>
-              <option value="">Выберите фильм</option>
-              {movies.map((movie) => (
-                <option key={movie.movieId} value={movie.movieId}>{movie.title}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Дата
-            <input name="sessionDate" type="date" value={sessionForm.sessionDate} onChange={handleSessionChange} required />
-          </label>
-          <label>
-            Время
-            <input name="sessionTime" type="time" value={sessionForm.sessionTime} onChange={handleSessionChange} required />
-          </label>
-          <label>
-            Зал
-            <input name="hallNumber" type="number" min="1" value={sessionForm.hallNumber} onChange={handleSessionChange} required />
-          </label>
-          <button className="primary-button" type="submit">Добавить сеанс</button>
-        </form>
-
-        <div className="table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr><th>ID</th><th>Фильм</th><th>Дата</th><th>Время</th><th>Зал</th><th></th></tr>
-            </thead>
-            <tbody>
-              {sessions.map((session) => (
-                <tr key={session.sessionId}>
-                  <td>{session.sessionId}</td>
-                  <td>{session.movie.title}</td>
-                  <td>{session.sessionDate}</td>
-                  <td>{session.sessionTime.slice(0, 5)}</td>
-                  <td>{session.hallNumber}</td>
-                  <td className="row-buttons">
-                    <button className="danger-button" onClick={() => removeSession(session.sessionId)}>Удалить</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <SeatGroupForm
-        title="Добавить ряд мест в сеанс"
-        events={sessionOptions}
-        urlFor={(id) => `/cinema/sessions/${id}/seats`}
-        nameLabel="Ряд"
-        namePlaceholder="F"
-      />
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

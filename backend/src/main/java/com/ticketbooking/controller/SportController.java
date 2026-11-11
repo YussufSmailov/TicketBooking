@@ -1,20 +1,22 @@
 package com.ticketbooking.controller;
 
 import com.ticketbooking.dto.BookingRequest;
-import com.ticketbooking.dto.SeatGroupRequest;
+import com.ticketbooking.dto.MatchRequest;
+import com.ticketbooking.dto.ZoneSeatRowRequest;
 import com.ticketbooking.entity.FootballMatch;
 import com.ticketbooking.entity.MatchBooking;
 import com.ticketbooking.entity.MatchSeat;
 import com.ticketbooking.entity.Team;
 import com.ticketbooking.service.SportService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/sport")
-@CrossOrigin(origins = "*")
 public class SportController {
 
     private final SportService sportService;
@@ -40,13 +42,13 @@ public class SportController {
 
     @PostMapping("/matches")
     @ResponseStatus(HttpStatus.CREATED)
-    public FootballMatch createMatch(@RequestBody FootballMatch match) {
-        return sportService.createMatch(match);
+    public FootballMatch createMatch(@Valid @RequestBody MatchRequest request) {
+        return sportService.createMatch(request);
     }
 
     @PutMapping("/matches/{id}")
-    public FootballMatch updateMatch(@PathVariable Long id, @RequestBody FootballMatch match) {
-        return sportService.updateMatch(id, match);
+    public FootballMatch updateMatch(@PathVariable Long id, @Valid @RequestBody MatchRequest request) {
+        return sportService.updateMatch(id, request);
     }
 
     @DeleteMapping("/matches/{id}")
@@ -55,15 +57,15 @@ public class SportController {
         sportService.deleteMatch(id);
     }
 
-    @PostMapping("/matches/{id}/seats")
-    @ResponseStatus(HttpStatus.CREATED)
-    public List<MatchSeat> addSeats(@PathVariable Long id, @RequestBody SeatGroupRequest request) {
-        return sportService.addSeats(id, request);
-    }
-
     @GetMapping("/matches/{id}/seats")
     public List<MatchSeat> getSeats(@PathVariable Long id) {
         return sportService.getSeatsByMatch(id);
+    }
+
+    @PostMapping("/matches/{id}/seats")
+    @ResponseStatus(HttpStatus.CREATED)
+    public List<MatchSeat> addSeatRow(@PathVariable Long id, @Valid @RequestBody ZoneSeatRowRequest request) {
+        return sportService.addSeatRow(id, request);
     }
 
     @GetMapping("/bookings")
@@ -73,8 +75,8 @@ public class SportController {
 
     @PostMapping("/bookings")
     @ResponseStatus(HttpStatus.CREATED)
-    public MatchBooking createBooking(@RequestBody BookingRequest request) {
-        return sportService.createBooking(request);
+    public MatchBooking createBooking(@Valid @RequestBody BookingRequest request, Principal principal) {
+        return sportService.createBooking(request.seatId(), principal.getName());
     }
 
     @PutMapping("/bookings/{id}/cancel")

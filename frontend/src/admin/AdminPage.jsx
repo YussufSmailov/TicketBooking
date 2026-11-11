@@ -3,41 +3,33 @@ import MoviesAdmin from "./MoviesAdmin";
 import ConcertsAdmin from "./ConcertsAdmin";
 import MatchesAdmin from "./MatchesAdmin";
 
-const tabs = [
-  { id: "movies", name: "Фильмы и сеансы" },
+const adminTabs = [
+  { id: "movies", name: "Кино" },
   { id: "concerts", name: "Концерты" },
-  { id: "matches", name: "Матчи КПЛ" }
+  { id: "matches", name: "Матчи" }
 ];
 
 function AdminPage() {
-  const [activeTab, setActiveTab] = useState("movies");
+  const [tab, setTab] = useState("movies");
 
   return (
-    <div className="app" data-category="admin">
-      <header className="header">
-        <div className="header-top">
-          <h1>Админ-панель</h1>
-          <a className="header-link" href="/">На сайт</a>
-        </div>
-        <p>Добавляйте события, сеансы и места без работы с базой напрямую</p>
-      </header>
-
+    <section className="admin-page">
+      <h2>Админка</h2>
       <nav className="tabs">
-        {tabs.map((tab) => (
+        {adminTabs.map((item) => (
           <button
-            key={tab.id}
-            className={tab.id === activeTab ? "tab tab-active" : "tab"}
-            onClick={() => setActiveTab(tab.id)}
+            key={item.id}
+            className={item.id === tab ? "tab tab-active" : "tab"}
+            onClick={() => setTab(item.id)}
           >
-            {tab.name}
+            {item.name}
           </button>
         ))}
       </nav>
-
-      {activeTab === "movies" && <MoviesAdmin />}
-      {activeTab === "concerts" && <ConcertsAdmin />}
-      {activeTab === "matches" && <MatchesAdmin />}
-    </div>
+      {tab === "movies" && <MoviesAdmin />}
+      {tab === "concerts" && <ConcertsAdmin />}
+      {tab === "matches" && <MatchesAdmin />}
+    </section>
   );
 }
 

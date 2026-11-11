@@ -1,62 +1,75 @@
 import { useState } from "react";
-import { postData } from "./adminApi";
+import FieldError from "../components/FieldError";
 
-function SeatGroupForm({ title, events, urlFor, nameLabel, namePlaceholder }) {
-  const [eventId, setEventId] = useState("");
-  const [name, setName] = useState("");
-  const [count, setCount] = useState(8);
-  const [price, setPrice] = useState(2500);
-  const [message, setMessage] = useState("");
+function SeatGroupForm({ zoneLabel, zoneOptions, onSubmit }) {
+  const [zone, setZone] = useState(zoneOptions ? zoneOptions[0] : "");
+  const [rowNumber, setRowNumber] = useState("1");
+  const [seatCount, setSeatCount] = useState("10");
+  const [price, setPrice] = useState("2500");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [message, setMessage] = useState("");
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setMessage("");
     setError("");
+    setFieldErrors({});
+    setMessage("");
+
+    const row = {
+      rowNumber: Number(rowNumber),
+      seatCount: Number(seatCount),
+      price: Number(price)
+    };
+    if (zoneLabel) {
+      row.zone = zone;
+    }
 
     try {
-      const seats = await postData(urlFor(eventId), {
-        name: name,
-        count: Number(count),
-        price: Number(price)
-      });
+      const seats = await onSubmit(row);
       setMessage(`Добавлено мест: ${seats.length}`);
-      setName("");
     } catch (e) {
       setError(e.message);
+      setFieldErrors(e.fieldErrors || {});
     }
   }
 
   return (
-    <section className="admin-section">
-      <h2>{title}</h2>
-      <form className="admin-form" onSubmit={handleSubmit}>
+    <form className="admin-form admin-form-inline" onSubmit={handleSubmit}>
+      {zoneLabel && (
         <label>
-          Событие
-          <select value={eventId} onChange={(e) => setEventId(e.target.value)} required>
-            <option value="">Выберите событие</option>
-            {events.map((item) => (
-              <option key={item.id} value={item.id}>{item.label}</option>
-            ))}
-          </select>
+          {zoneLabel}
+          {zoneOptions ? (
+            <select value={zone} onChange={(e) => setZone(e.target.value)} required>
+              {zoneOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          ) : (
+            <input value={zone} onChange={(e) => setZone(e.target.value)} maxLength={30} required />
+          )}
+          <FieldError message={fieldErrors.zone} />
         </label>
-        <label>
-          {nameLabel}
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={namePlaceholder} required />
-        </label>
-        <label>
-          Количество мест
-          <input type="number" min="1" max="50" value={count} onChange={(e) => setCount(e.target.value)} required />
-        </label>
-        <label>
-          Цена, ₸
-          <input type="number" min="1" value={price} onChange={(e) => setPrice(e.target.value)} required />
-        </label>
-        <button className="primary-button" type="submit">Добавить места</button>
-      </form>
-      {message && <p className="success">{message}</p>}
+      )}
+      <label>
+        Ряд
+        <input type="number" min="1" max="50" value={rowNumber} onChange={(e) => setRowNumber(e.target.value)} required />
+        <FieldError message={fieldErrors.rowNumber} />
+      </label>
+      <label>
+        Мест в ряду
+        <input type="number" min="1" max="60" value={seatCount} onChange={(e) => setSeatCount(e.target.value)} required />
+        <FieldError message={fieldErrors.seatCount} />
+      </label>
+      <label>
+        Цена, ₸
+        <input type="number" min="1" step="1" value={price} onChange={(e) => setPrice(e.target.value)} required />
+        <FieldError message={fieldErrors.price} />
+      </label>
+      <button className="primary-button" type="submit">Добавить ряд</button>
       {error && <p className="error">{error}</p>}
-    </section>
+      {message && <p className="success">{message}</p>}
+    </form>
   );
 }
 

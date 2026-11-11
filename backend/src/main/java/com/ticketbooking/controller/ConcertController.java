@@ -1,19 +1,21 @@
 package com.ticketbooking.controller;
 
 import com.ticketbooking.dto.BookingRequest;
-import com.ticketbooking.dto.SeatGroupRequest;
+import com.ticketbooking.dto.ConcertRequest;
+import com.ticketbooking.dto.ZoneSeatRowRequest;
 import com.ticketbooking.entity.Concert;
 import com.ticketbooking.entity.ConcertBooking;
 import com.ticketbooking.entity.ConcertSeat;
 import com.ticketbooking.service.ConcertService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/concert")
-@CrossOrigin(origins = "*")
 public class ConcertController {
 
     private final ConcertService concertService;
@@ -34,13 +36,13 @@ public class ConcertController {
 
     @PostMapping("/concerts")
     @ResponseStatus(HttpStatus.CREATED)
-    public Concert createConcert(@RequestBody Concert concert) {
-        return concertService.createConcert(concert);
+    public Concert createConcert(@Valid @RequestBody ConcertRequest request) {
+        return concertService.createConcert(request);
     }
 
     @PutMapping("/concerts/{id}")
-    public Concert updateConcert(@PathVariable Long id, @RequestBody Concert concert) {
-        return concertService.updateConcert(id, concert);
+    public Concert updateConcert(@PathVariable Long id, @Valid @RequestBody ConcertRequest request) {
+        return concertService.updateConcert(id, request);
     }
 
     @DeleteMapping("/concerts/{id}")
@@ -49,15 +51,15 @@ public class ConcertController {
         concertService.deleteConcert(id);
     }
 
-    @PostMapping("/concerts/{id}/seats")
-    @ResponseStatus(HttpStatus.CREATED)
-    public List<ConcertSeat> addSeats(@PathVariable Long id, @RequestBody SeatGroupRequest request) {
-        return concertService.addSeats(id, request);
-    }
-
     @GetMapping("/concerts/{id}/seats")
     public List<ConcertSeat> getSeats(@PathVariable Long id) {
         return concertService.getSeatsByConcert(id);
+    }
+
+    @PostMapping("/concerts/{id}/seats")
+    @ResponseStatus(HttpStatus.CREATED)
+    public List<ConcertSeat> addSeatRow(@PathVariable Long id, @Valid @RequestBody ZoneSeatRowRequest request) {
+        return concertService.addSeatRow(id, request);
     }
 
     @GetMapping("/bookings")
@@ -67,8 +69,8 @@ public class ConcertController {
 
     @PostMapping("/bookings")
     @ResponseStatus(HttpStatus.CREATED)
-    public ConcertBooking createBooking(@RequestBody BookingRequest request) {
-        return concertService.createBooking(request);
+    public ConcertBooking createBooking(@Valid @RequestBody BookingRequest request, Principal principal) {
+        return concertService.createBooking(request.seatId(), principal.getName());
     }
 
     @PutMapping("/bookings/{id}/cancel")

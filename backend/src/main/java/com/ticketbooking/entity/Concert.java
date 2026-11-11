@@ -25,4 +25,6 @@ public class Concert {
     private String city;
     private LocalDate concertDate;
     private LocalTime concertTime;
+    private String description;
+    private String posterUrl;
 }

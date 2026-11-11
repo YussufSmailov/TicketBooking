@@ -1,21 +1,23 @@
 package com.ticketbooking.controller;
 
 import com.ticketbooking.dto.BookingRequest;
-import com.ticketbooking.dto.SeatGroupRequest;
+import com.ticketbooking.dto.MovieRequest;
+import com.ticketbooking.dto.SeatRowRequest;
 import com.ticketbooking.dto.SessionRequest;
 import com.ticketbooking.entity.Booking;
 import com.ticketbooking.entity.Movie;
 import com.ticketbooking.entity.MovieSession;
 import com.ticketbooking.entity.Seat;
 import com.ticketbooking.service.CinemaService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/cinema")
-@CrossOrigin(origins = "*")
 public class CinemaController {
 
     private final CinemaService cinemaService;
@@ -34,15 +36,20 @@ public class CinemaController {
         return cinemaService.getMovieById(id);
     }
 
+    @GetMapping("/movies/{id}/sessions")
+    public List<MovieSession> getMovieSessions(@PathVariable Long id) {
+        return cinemaService.getSessionsByMovie(id);
+    }
+
     @PostMapping("/movies")
     @ResponseStatus(HttpStatus.CREATED)
-    public Movie createMovie(@RequestBody Movie movie) {
-        return cinemaService.createMovie(movie);
+    public Movie createMovie(@Valid @RequestBody MovieRequest request) {
+        return cinemaService.createMovie(request);
     }
 
     @PutMapping("/movies/{id}")
-    public Movie updateMovie(@PathVariable Long id, @RequestBody Movie movie) {
-        return cinemaService.updateMovie(id, movie);
+    public Movie updateMovie(@PathVariable Long id, @Valid @RequestBody MovieRequest request) {
+        return cinemaService.updateMovie(id, request);
     }
 
     @DeleteMapping("/movies/{id}")
@@ -56,10 +63,20 @@ public class CinemaController {
         return cinemaService.getAllSessions();
     }
 
+    @GetMapping("/sessions/{id}")
+    public MovieSession getSession(@PathVariable Long id) {
+        return cinemaService.getSessionById(id);
+    }
+
     @PostMapping("/sessions")
     @ResponseStatus(HttpStatus.CREATED)
-    public MovieSession createSession(@RequestBody SessionRequest request) {
+    public MovieSession createSession(@Valid @RequestBody SessionRequest request) {
         return cinemaService.createSession(request);
+    }
+
+    @PutMapping("/sessions/{id}")
+    public MovieSession updateSession(@PathVariable Long id, @Valid @RequestBody SessionRequest request) {
+        return cinemaService.updateSession(id, request);
     }
 
     @DeleteMapping("/sessions/{id}")
@@ -68,15 +85,15 @@ public class CinemaController {
         cinemaService.deleteSession(id);
     }
 
-    @PostMapping("/sessions/{id}/seats")
-    @ResponseStatus(HttpStatus.CREATED)
-    public List<Seat> addSeats(@PathVariable Long id, @RequestBody SeatGroupRequest request) {
-        return cinemaService.addSeats(id, request);
-    }
-
     @GetMapping("/sessions/{id}/seats")
     public List<Seat> getSeats(@PathVariable Long id) {
         return cinemaService.getSeatsBySession(id);
+    }
+
+    @PostMapping("/sessions/{id}/seats")
+    @ResponseStatus(HttpStatus.CREATED)
+    public List<Seat> addSeatRow(@PathVariable Long id, @Valid @RequestBody SeatRowRequest request) {
+        return cinemaService.addSeatRow(id, request);
     }
 
     @GetMapping("/bookings")
@@ -86,8 +103,8 @@ public class CinemaController {
 
     @PostMapping("/bookings")
     @ResponseStatus(HttpStatus.CREATED)
-    public Booking createBooking(@RequestBody BookingRequest request) {
-        return cinemaService.createBooking(request);
+    public Booking createBooking(@Valid @RequestBody BookingRequest request, Principal principal) {
+        return cinemaService.createBooking(request.seatId(), principal.getName());
     }
 
     @PutMapping("/bookings/{id}/cancel")

@@ -1,7 +1,7 @@
 package com.ticketbooking.service;
 
-import com.ticketbooking.dto.BookingRequest;
-import com.ticketbooking.dto.SeatGroupRequest;
+import com.ticketbooking.dto.ConcertRequest;
+import com.ticketbooking.dto.ZoneSeatRowRequest;
 import com.ticketbooking.entity.Concert;
 import com.ticketbooking.entity.ConcertBooking;
 import com.ticketbooking.entity.ConcertSeat;
@@ -45,53 +45,58 @@ public class ConcertService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Концерт не найден"));
     }
 
-    public Concert createConcert(Concert concert) {
+    public Concert createConcert(ConcertRequest request) {
+        Concert concert = new Concert();
+        copyConcertFields(request, concert);
         return concertRepository.save(concert);
     }
 
-    public Concert updateConcert(Long id, Concert newData) {
+    public Concert updateConcert(Long id, ConcertRequest request) {
         Concert concert = getConcertById(id);
-        concert.setArtist(newData.getArtist());
-        concert.setTitle(newData.getTitle());
-        concert.setVenue(newData.getVenue());
-        concert.setCity(newData.getCity());
-        concert.setConcertDate(newData.getConcertDate());
-        concert.setConcertTime(newData.getConcertTime());
+        copyConcertFields(request, concert);
         return concertRepository.save(concert);
     }
 
-    @Transactional
+    private void copyConcertFields(ConcertRequest request, Concert concert) {
+        concert.setArtist(request.artist().trim());
+        concert.setTitle(request.title().trim());
+        concert.setVenue(request.venue().trim());
+        concert.setCity(request.city().trim());
+        concert.setConcertDate(request.concertDate());
+        concert.setConcertTime(request.concertTime());
+        concert.setDescription(request.description());
+        concert.setPosterUrl(request.posterUrl() == null || request.posterUrl().isBlank() ? null : request.posterUrl().trim());
+    }
+
     public void deleteConcert(Long id) {
         Concert concert = getConcertById(id);
-        List<ConcertSeat> seats = seatRepository.findByConcertConcertIdOrderBySeatIdAsc(id);
-        seatRepository.deleteAll(seats);
-        seatRepository.flush();
         concertRepository.delete(concert);
-    }
-
-    @Transactional
-    public List<ConcertSeat> addSeats(Long concertId, SeatGroupRequest request) {
-        request.validate();
-        Concert concert = getConcertById(concertId);
-        String zone = request.name().trim();
-        String prefix = zone.substring(0, 1).toUpperCase();
-        int existingSeats = seatRepository.findByConcertConcertIdOrderBySeatIdAsc(concertId).size();
-
-        List<ConcertSeat> newSeats = new ArrayList<>();
-        for (int i = 1; i <= request.count(); i++) {
-            ConcertSeat seat = new ConcertSeat();
-            seat.setConcert(concert);
-            seat.setZone(zone);
-            seat.setSeatNumber(prefix + "-" + (existingSeats + i));
-            seat.setPrice(request.price());
-            seat.setStatus("Available");
-            newSeats.add(seat);
-        }
-        return seatRepository.saveAllAndFlush(newSeats);
     }
 
     public List<ConcertSeat> getSeatsByConcert(Long concertId) {
         return seatRepository.findByConcertConcertIdOrderBySeatIdAsc(concertId);
+    }
+
+    @Transactional
+    public List<ConcertSeat> addSeatRow(Long concertId, ZoneSeatRowRequest request) {
+        Concert concert = getConcertById(concertId);
+        String zone = request.zone().trim();
+        String firstSeatNumber = request.rowNumber() + "-1";
+        if (seatRepository.existsByConcertConcertIdAndZoneAndSeatNumber(concertId, zone, firstSeatNumber)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ряд " + request.rowNumber() + " уже есть в зоне " + zone);
+        }
+
+        List<ConcertSeat> newSeats = new ArrayList<>();
+        for (int number = 1; number <= request.seatCount(); number++) {
+            ConcertSeat seat = new ConcertSeat();
+            seat.setConcert(concert);
+            seat.setZone(zone);
+            seat.setSeatNumber(request.rowNumber() + "-" + number);
+            seat.setPrice(request.price());
+            seat.setStatus("Available");
+            newSeats.add(seat);
+        }
+        return seatRepository.saveAll(newSeats);
     }
 
     public List<ConcertBooking> getAllBookings() {
@@ -99,23 +104,23 @@ public class ConcertService {
     }
 
     @Transactional
-    public ConcertBooking createBooking(BookingRequest request) {
-        ConcertSeat seat = seatRepository.findById(request.seatId())
+    public ConcertBooking createBooking(Long seatId, String userEmail) {
+        ConcertSeat seat = seatRepository.findById(seatId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Место не найдено"));
 
         if (!seat.getStatus().equals("Available")) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Это место уже занято");
         }
 
-        User user = userService.findOrCreate(request.fullName(), request.email(), request.phone());
+        User user = userService.getByEmail(userEmail);
 
         ConcertBooking booking = new ConcertBooking();
         booking.setUser(user);
         booking.setSeat(seat);
         booking.setBookingDate(LocalDateTime.now());
-        booking.setStatus("Confirmed");
+        booking.setStatus("Pending");
 
-        seat.setStatus("Booked");
+        seat.setStatus("Reserved");
         seatRepository.save(seat);
 
         return bookingRepository.save(booking);

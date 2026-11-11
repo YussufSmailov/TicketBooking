@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
-import { getData, postData, putData, deleteData } from "./adminApi";
+import FieldError from "../components/FieldError";
 import SeatGroupForm from "./SeatGroupForm";
+import { addMatchSeats, deleteMatch, getMatches, getTeams, saveMatch } from "./adminApi";
+import { todayString } from "../validation";
+
+const sectors = ["Западная", "Восточная", "Северная", "Южная", "VIP"];
 
 const emptyMatch = {
   homeTeamId: "",
@@ -8,7 +12,9 @@ const emptyMatch = {
   tournament: "Kazakhstan Premier League",
   roundName: "",
   matchDate: "",
-  matchTime: ""
+  matchTime: "",
+  posterUrl: "",
+  description: ""
 };
 
 function MatchesAdmin() {
@@ -16,179 +22,147 @@ function MatchesAdmin() {
   const [matches, setMatches] = useState([]);
   const [form, setForm] = useState(emptyMatch);
   const [editingId, setEditingId] = useState(null);
-  const [message, setMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [seatsMatchId, setSeatsMatchId] = useState(null);
   const [error, setError] = useState("");
 
-  async function loadData() {
-    try {
-      setTeams(await getData("/sport/teams"));
-      setMatches(await getData("/sport/matches"));
-    } catch {
-      setError("Не удалось загрузить данные. Проверьте, что backend запущен.");
-    }
+  function loadMatches() {
+    getMatches().then(setMatches).catch((e) => setError(e.message));
   }
 
   useEffect(() => {
-    loadData();
+    getTeams().then(setTeams).catch((e) => setError(e.message));
+    loadMatches();
   }, []);
 
-  function showResult(text) {
-    setMessage(text);
+  function changeField(name, value) {
+    setForm({ ...form, [name]: value });
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
     setError("");
-    loadData();
-  }
-
-  function handleChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  }
-
-  async function saveMatch(e) {
-    e.preventDefault();
-
+    setFieldErrors({});
     if (form.homeTeamId === form.awayTeamId) {
-      setError("Команда не может играть сама с собой");
+      setFieldErrors({ awayTeamId: "Команда не может играть сама с собой" });
       return;
     }
-
-    const body = {
-      homeTeam: { teamId: Number(form.homeTeamId) },
-      awayTeam: { teamId: Number(form.awayTeamId) },
-      tournament: form.tournament,
-      roundName: form.roundName,
-      matchDate: form.matchDate,
-      matchTime: form.matchTime
-    };
-
     try {
-      if (editingId === null) {
-        await postData("/sport/matches", body);
-        showResult("Матч добавлен. Теперь добавьте к нему места.");
-      } else {
-        await putData(`/sport/matches/${editingId}`, body);
-        showResult("Матч изменён");
-      }
+      await saveMatch(editingId, {
+        ...form,
+        homeTeamId: Number(form.homeTeamId),
+        awayTeamId: Number(form.awayTeamId)
+      });
       setForm(emptyMatch);
       setEditingId(null);
-    } catch (err) {
-      setError(err.message);
+      loadMatches();
+    } catch (e) {
+      setError(e.message);
+      setFieldErrors(e.fieldErrors || {});
     }
   }
 
   function startEdit(match) {
     setEditingId(match.matchId);
     setForm({
-      homeTeamId: match.homeTeam.teamId,
-      awayTeamId: match.awayTeam.teamId,
+      homeTeamId: String(match.homeTeam.teamId),
+      awayTeamId: String(match.awayTeam.teamId),
       tournament: match.tournament,
-      roundName: match.roundName,
+      roundName: match.roundName || "",
       matchDate: match.matchDate,
-      matchTime: match.matchTime.slice(0, 5)
+      matchTime: match.matchTime.slice(0, 5),
+      posterUrl: match.posterUrl || "",
+      description: match.description || ""
     });
   }
 
-  function cancelEdit() {
-    setEditingId(null);
-    setForm(emptyMatch);
-  }
-
   async function removeMatch(id) {
-    if (!window.confirm("Удалить матч и все его места?")) return;
+    setError("");
     try {
-      await deleteData(`/sport/matches/${id}`);
-      showResult("Матч удалён");
-    } catch (err) {
-      setError("Нельзя удалить матч, на который уже есть брони.");
+      await deleteMatch(id);
+      loadMatches();
+    } catch (e) {
+      setError(e.message);
     }
   }
 
-  const matchOptions = matches.map((match) => ({
-    id: match.matchId,
-    label: `${match.homeTeam.name} — ${match.awayTeam.name}, ${match.matchDate}`
-  }));
-
   return (
-    <div>
-      {message && <p className="success">{message}</p>}
+    <div className="admin-section">
       {error && <p className="error">{error}</p>}
 
-      <section className="admin-section">
-        <h2>{editingId === null ? "Новый матч" : "Изменить матч"}</h2>
-        <form className="admin-form" onSubmit={saveMatch}>
-          <label>
-            Хозяева
-            <select name="homeTeamId" value={form.homeTeamId} onChange={handleChange} required>
-              <option value="">Выберите клуб</option>
-              {teams.map((team) => (
-                <option key={team.teamId} value={team.teamId}>{team.name}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Гости
-            <select name="awayTeamId" value={form.awayTeamId} onChange={handleChange} required>
-              <option value="">Выберите клуб</option>
-              {teams.map((team) => (
-                <option key={team.teamId} value={team.teamId}>{team.name}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Турнир
-            <input name="tournament" value={form.tournament} onChange={handleChange} required />
-          </label>
-          <label>
-            Тур
-            <input name="roundName" value={form.roundName} onChange={handleChange} placeholder="Round 27" />
-          </label>
-          <label>
-            Дата
-            <input name="matchDate" type="date" value={form.matchDate} onChange={handleChange} required />
-          </label>
-          <label>
-            Время
-            <input name="matchTime" type="time" value={form.matchTime} onChange={handleChange} required />
-          </label>
-          <div className="form-buttons">
-            <button className="primary-button" type="submit">
-              {editingId === null ? "Добавить матч" : "Сохранить"}
+      <h3>{editingId ? "Изменить матч" : "Новый матч"}</h3>
+      <form className="admin-form" onSubmit={handleSubmit}>
+        <label>
+          Хозяева
+          <select value={form.homeTeamId} onChange={(e) => changeField("homeTeamId", e.target.value)} required>
+            <option value="">Выберите команду</option>
+            {teams.map((team) => <option key={team.teamId} value={team.teamId}>{team.name}</option>)}
+          </select>
+          <FieldError message={fieldErrors.homeTeamId} />
+        </label>
+        <label>
+          Гости
+          <select value={form.awayTeamId} onChange={(e) => changeField("awayTeamId", e.target.value)} required>
+            <option value="">Выберите команду</option>
+            {teams.map((team) => <option key={team.teamId} value={team.teamId}>{team.name}</option>)}
+          </select>
+          <FieldError message={fieldErrors.awayTeamId} />
+        </label>
+        <label>
+          Турнир
+          <input value={form.tournament} maxLength={100} onChange={(e) => changeField("tournament", e.target.value)} required />
+          <FieldError message={fieldErrors.tournament} />
+        </label>
+        <label>
+          Тур
+          <input value={form.roundName} maxLength={30} onChange={(e) => changeField("roundName", e.target.value)} />
+          <FieldError message={fieldErrors.roundName} />
+        </label>
+        <label>
+          Дата
+          <input type="date" min={todayString()} value={form.matchDate} onChange={(e) => changeField("matchDate", e.target.value)} required />
+          <FieldError message={fieldErrors.matchDate} />
+        </label>
+        <label>
+          Время
+          <input type="time" value={form.matchTime} onChange={(e) => changeField("matchTime", e.target.value)} required />
+          <FieldError message={fieldErrors.matchTime} />
+        </label>
+        <label>
+          Ссылка на постер
+          <input type="url" value={form.posterUrl} maxLength={300} placeholder="https://picsum.photos/seed/name/400/600" onChange={(e) => changeField("posterUrl", e.target.value)} />
+          <FieldError message={fieldErrors.posterUrl} />
+        </label>
+        <label className="admin-wide">
+          Описание
+          <textarea rows={3} value={form.description} maxLength={2000} onChange={(e) => changeField("description", e.target.value)} />
+          <FieldError message={fieldErrors.description} />
+        </label>
+        <div className="admin-buttons">
+          <button className="primary-button" type="submit">{editingId ? "Сохранить" : "Добавить"}</button>
+          {editingId && (
+            <button className="secondary-button" type="button" onClick={() => { setEditingId(null); setForm(emptyMatch); }}>
+              Отмена
             </button>
-            {editingId !== null && (
-              <button className="secondary-button" type="button" onClick={cancelEdit}>Отмена</button>
-            )}
-          </div>
-        </form>
-
-        <div className="table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr><th>ID</th><th>Матч</th><th>Стадион</th><th>Тур</th><th>Дата</th><th></th></tr>
-            </thead>
-            <tbody>
-              {matches.map((match) => (
-                <tr key={match.matchId}>
-                  <td>{match.matchId}</td>
-                  <td>{match.homeTeam.name} — {match.awayTeam.name}</td>
-                  <td>{match.homeTeam.stadium}</td>
-                  <td>{match.roundName}</td>
-                  <td>{match.matchDate} {match.matchTime.slice(0, 5)}</td>
-                  <td className="row-buttons">
-                    <button className="secondary-button" onClick={() => startEdit(match)}>Изменить</button>
-                    <button className="danger-button" onClick={() => removeMatch(match.matchId)}>Удалить</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          )}
         </div>
-      </section>
+      </form>
 
-      <SeatGroupForm
-        title="Добавить сектор мест на матч"
-        events={matchOptions}
-        urlFor={(id) => `/sport/matches/${id}/seats`}
-        nameLabel="Сектор"
-        namePlaceholder="East"
-      />
+      <ul className="admin-list">
+        {matches.map((match) => (
+          <li key={match.matchId}>
+            <span>{match.homeTeam.name} — {match.awayTeam.name}, {match.matchDate} {match.matchTime.slice(0, 5)}</span>
+            <span className="admin-buttons">
+              <button className="secondary-button" onClick={() => setSeatsMatchId(match.matchId)}>Места</button>
+              <button className="secondary-button" onClick={() => startEdit(match)}>Изменить</button>
+              <button className="danger-button" onClick={() => removeMatch(match.matchId)}>Удалить</button>
+            </span>
+            {seatsMatchId === match.matchId && (
+              <SeatGroupForm zoneLabel="Сектор" zoneOptions={sectors} onSubmit={(row) => addMatchSeats(match.matchId, row)} />
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

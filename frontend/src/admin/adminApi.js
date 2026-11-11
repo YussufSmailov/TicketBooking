@@ -1,47 +1,74 @@
-const API_URL = "http://localhost:8080/api";
+import { API_URL, request } from "../api";
 
-async function request(url, method, body) {
-  const options = {
-    method: method,
-    headers: { "Content-Type": "application/json" }
-  };
-  if (body) {
-    options.body = JSON.stringify(body);
+export function getMovies() {
+  return request(`${API_URL}/cinema/movies`);
+}
+
+export function saveMovie(id, movie) {
+  if (id) {
+    return request(`${API_URL}/cinema/movies/${id}`, { method: "PUT", body: movie });
   }
+  return request(`${API_URL}/cinema/movies`, { method: "POST", body: movie });
+}
 
-  const response = await fetch(API_URL + url, options);
+export function deleteMovie(id) {
+  return request(`${API_URL}/cinema/movies/${id}`, { method: "DELETE" });
+}
 
-  if (!response.ok) {
-    let message = "Ошибка сервера";
-    try {
-      const data = await response.json();
-      if (data.message) {
-        message = data.message;
-      }
-    } catch {
-      message = "Ошибка сервера";
-    }
-    throw new Error(message);
+export function getSessions() {
+  return request(`${API_URL}/cinema/sessions`);
+}
+
+export function createSession(session) {
+  return request(`${API_URL}/cinema/sessions`, { method: "POST", body: session });
+}
+
+export function deleteSession(id) {
+  return request(`${API_URL}/cinema/sessions/${id}`, { method: "DELETE" });
+}
+
+export function addSessionSeats(sessionId, row) {
+  return request(`${API_URL}/cinema/sessions/${sessionId}/seats`, { method: "POST", body: row });
+}
+
+export function getConcerts() {
+  return request(`${API_URL}/concert/concerts`);
+}
+
+export function saveConcert(id, concert) {
+  if (id) {
+    return request(`${API_URL}/concert/concerts/${id}`, { method: "PUT", body: concert });
   }
+  return request(`${API_URL}/concert/concerts`, { method: "POST", body: concert });
+}
 
-  if (response.status === 204) {
-    return null;
+export function deleteConcert(id) {
+  return request(`${API_URL}/concert/concerts/${id}`, { method: "DELETE" });
+}
+
+export function addConcertSeats(concertId, row) {
+  return request(`${API_URL}/concert/concerts/${concertId}/seats`, { method: "POST", body: row });
+}
+
+export function getTeams() {
+  return request(`${API_URL}/sport/teams`);
+}
+
+export function getMatches() {
+  return request(`${API_URL}/sport/matches`);
+}
+
+export function saveMatch(id, match) {
+  if (id) {
+    return request(`${API_URL}/sport/matches/${id}`, { method: "PUT", body: match });
   }
-  return response.json();
+  return request(`${API_URL}/sport/matches`, { method: "POST", body: match });
 }
 
-export function getData(url) {
-  return request(url, "GET");
+export function deleteMatch(id) {
+  return request(`${API_URL}/sport/matches/${id}`, { method: "DELETE" });
 }
 
-export function postData(url, body) {
-  return request(url, "POST", body);
-}
-
-export function putData(url, body) {
-  return request(url, "PUT", body);
-}
-
-export function deleteData(url) {
-  return request(url, "DELETE");
+export function addMatchSeats(matchId, row) {
+  return request(`${API_URL}/sport/matches/${matchId}/seats`, { method: "POST", body: row });
 }

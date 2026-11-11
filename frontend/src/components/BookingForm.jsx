@@ -1,58 +1,65 @@
 import { useState } from "react";
 import { createBooking } from "../api";
+import { formatPrice } from "../format";
+import PaymentModal from "./PaymentModal";
 
-function BookingForm({ category, seat, onBooked }) {
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+function BookingForm({ category, seat, user, onFinished, onNeedLogin, onSeatsChanged }) {
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
+  const [booking, setBooking] = useState(null);
 
-  async function handleSubmit(event) {
-    event.preventDefault();
+  async function handleBook() {
     setError("");
     setSending(true);
-
     try {
-      const booking = await createBooking(category, {
-        fullName: fullName,
-        email: email,
-        phone: phone,
-        seatId: seat.id
-      });
-      onBooked(booking);
+      const created = await createBooking(category, { seatId: seat.id });
+      setBooking(created);
+      onSeatsChanged();
     } catch (e) {
       setError(e.message);
+      onSeatsChanged();
     } finally {
       setSending(false);
     }
   }
 
+  function handlePaymentFinished(result) {
+    setBooking(null);
+    onFinished(result, seat);
+  }
+
+  function handleClose() {
+    setBooking(null);
+    onFinished(null, seat);
+  }
+
   return (
-    <form className="booking-form" onSubmit={handleSubmit}>
-      <h3>Место {seat.label}, {seat.price} ₸</h3>
-
-      <label>
-        Имя и фамилия
-        <input value={fullName} onChange={(e) => setFullName(e.target.value)} required />
-      </label>
-
-      <label>
-        Email
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-      </label>
-
-      <label>
-        Телефон
-        <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+7 700 000 00 00" />
-      </label>
-
-      {error && <p className="error">{error}</p>}
-
-      <button className="primary-button" type="submit" disabled={sending}>
-        {sending ? "Бронируем..." : "Забронировать"}
-      </button>
-    </form>
+    <div className="booking-form">
+      <h3>{seat.label}, {formatPrice(seat.price)}</h3>
+      {user ? (
+        <>
+          <p className="muted">Билет будет оформлен на {user.fullName} ({user.email})</p>
+          {error && <p className="error">{error}</p>}
+          <button className="primary-button" onClick={handleBook} disabled={sending}>
+            {sending ? "Бронируем..." : "Перейти к оплате"}
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="muted">Бронирование доступно только после входа.</p>
+          <button className="primary-button" onClick={onNeedLogin}>Войти, чтобы забронировать</button>
+        </>
+      )}
+      {booking && (
+        <PaymentModal
+          type={category}
+          booking={booking}
+          seat={seat}
+          onFinished={handlePaymentFinished}
+          onClose={handleClose}
+        />
+      )}
+    </div>
   );
 }
 

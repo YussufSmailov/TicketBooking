@@ -31,4 +31,6 @@ public class FootballMatch {
     private String roundName;
     private LocalDate matchDate;
     private LocalTime matchTime;
+    private String description;
+    private String posterUrl;
 }

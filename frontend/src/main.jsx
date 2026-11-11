@@ -1,13 +1,19 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 import App from "./App";
-import AdminPage from "./admin/AdminPage";
+import { AuthProvider } from "./AuthContext";
+import { applySavedTheme } from "./theme";
 import "./App.css";
 
-const isAdminPage = window.location.pathname.startsWith("/admin");
+applySavedTheme();
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    {isAdminPage ? <AdminPage /> : <App />}
+    <BrowserRouter>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </BrowserRouter>
   </React.StrictMode>
 );

@@ -1,7 +1,7 @@
 package com.ticketbooking.service;
 
-import com.ticketbooking.dto.BookingRequest;
-import com.ticketbooking.dto.SeatGroupRequest;
+import com.ticketbooking.dto.MatchRequest;
+import com.ticketbooking.dto.ZoneSeatRowRequest;
 import com.ticketbooking.entity.FootballMatch;
 import com.ticketbooking.entity.MatchBooking;
 import com.ticketbooking.entity.MatchSeat;
@@ -59,55 +59,61 @@ public class SportService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Матч не найден"));
     }
 
-    public FootballMatch createMatch(FootballMatch match) {
-        match.setHomeTeam(getTeamById(match.getHomeTeam().getTeamId()));
-        match.setAwayTeam(getTeamById(match.getAwayTeam().getTeamId()));
+    public FootballMatch createMatch(MatchRequest request) {
+        FootballMatch match = new FootballMatch();
+        copyMatchFields(request, match);
         return matchRepository.save(match);
     }
 
-    public FootballMatch updateMatch(Long id, FootballMatch newData) {
+    public FootballMatch updateMatch(Long id, MatchRequest request) {
         FootballMatch match = getMatchById(id);
-        match.setHomeTeam(getTeamById(newData.getHomeTeam().getTeamId()));
-        match.setAwayTeam(getTeamById(newData.getAwayTeam().getTeamId()));
-        match.setTournament(newData.getTournament());
-        match.setRoundName(newData.getRoundName());
-        match.setMatchDate(newData.getMatchDate());
-        match.setMatchTime(newData.getMatchTime());
+        copyMatchFields(request, match);
         return matchRepository.save(match);
     }
 
-    @Transactional
+    private void copyMatchFields(MatchRequest request, FootballMatch match) {
+        if (request.homeTeamId().equals(request.awayTeamId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Команда не может играть сама с собой");
+        }
+        match.setHomeTeam(getTeamById(request.homeTeamId()));
+        match.setAwayTeam(getTeamById(request.awayTeamId()));
+        match.setTournament(request.tournament().trim());
+        match.setRoundName(request.roundName());
+        match.setMatchDate(request.matchDate());
+        match.setMatchTime(request.matchTime());
+        match.setDescription(request.description());
+        match.setPosterUrl(request.posterUrl() == null || request.posterUrl().isBlank() ? null : request.posterUrl().trim());
+    }
+
     public void deleteMatch(Long id) {
         FootballMatch match = getMatchById(id);
-        List<MatchSeat> seats = seatRepository.findByMatchMatchIdOrderBySeatIdAsc(id);
-        seatRepository.deleteAll(seats);
-        seatRepository.flush();
         matchRepository.delete(match);
-    }
-
-    @Transactional
-    public List<MatchSeat> addSeats(Long matchId, SeatGroupRequest request) {
-        request.validate();
-        FootballMatch match = getMatchById(matchId);
-        String sector = request.name().trim();
-        String prefix = sector.substring(0, 1).toUpperCase();
-        int existingSeats = seatRepository.findByMatchMatchIdOrderBySeatIdAsc(matchId).size();
-
-        List<MatchSeat> newSeats = new ArrayList<>();
-        for (int i = 1; i <= request.count(); i++) {
-            MatchSeat seat = new MatchSeat();
-            seat.setMatch(match);
-            seat.setSector(sector);
-            seat.setSeatNumber(prefix + "-" + (existingSeats + i));
-            seat.setPrice(request.price());
-            seat.setStatus("Available");
-            newSeats.add(seat);
-        }
-        return seatRepository.saveAllAndFlush(newSeats);
     }
 
     public List<MatchSeat> getSeatsByMatch(Long matchId) {
         return seatRepository.findByMatchMatchIdOrderBySeatIdAsc(matchId);
+    }
+
+    @Transactional
+    public List<MatchSeat> addSeatRow(Long matchId, ZoneSeatRowRequest request) {
+        FootballMatch match = getMatchById(matchId);
+        String sector = request.zone().trim();
+        String firstSeatNumber = request.rowNumber() + "-1";
+        if (seatRepository.existsByMatchMatchIdAndSectorAndSeatNumber(matchId, sector, firstSeatNumber)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ряд " + request.rowNumber() + " уже есть в секторе " + sector);
+        }
+
+        List<MatchSeat> newSeats = new ArrayList<>();
+        for (int number = 1; number <= request.seatCount(); number++) {
+            MatchSeat seat = new MatchSeat();
+            seat.setMatch(match);
+            seat.setSector(sector);
+            seat.setSeatNumber(request.rowNumber() + "-" + number);
+            seat.setPrice(request.price());
+            seat.setStatus("Available");
+            newSeats.add(seat);
+        }
+        return seatRepository.saveAll(newSeats);
     }
 
     public List<MatchBooking> getAllBookings() {
@@ -115,23 +121,23 @@ public class SportService {
     }
 
     @Transactional
-    public MatchBooking createBooking(BookingRequest request) {
-        MatchSeat seat = seatRepository.findById(request.seatId())
+    public MatchBooking createBooking(Long seatId, String userEmail) {
+        MatchSeat seat = seatRepository.findById(seatId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Место не найдено"));
 
         if (!seat.getStatus().equals("Available")) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Это место уже занято");
         }
 
-        User user = userService.findOrCreate(request.fullName(), request.email(), request.phone());
+        User user = userService.getByEmail(userEmail);
 
         MatchBooking booking = new MatchBooking();
         booking.setUser(user);
         booking.setSeat(seat);
         booking.setBookingDate(LocalDateTime.now());
-        booking.setStatus("Confirmed");
+        booking.setStatus("Pending");
 
-        seat.setStatus("Booked");
+        seat.setStatus("Reserved");
         seatRepository.save(seat);
 
         return bookingRepository.save(booking);

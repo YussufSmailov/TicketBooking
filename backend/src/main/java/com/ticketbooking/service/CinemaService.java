@@ -1,7 +1,7 @@
 package com.ticketbooking.service;
 
-import com.ticketbooking.dto.BookingRequest;
-import com.ticketbooking.dto.SeatGroupRequest;
+import com.ticketbooking.dto.MovieRequest;
+import com.ticketbooking.dto.SeatRowRequest;
 import com.ticketbooking.dto.SessionRequest;
 import com.ticketbooking.entity.*;
 import com.ticketbooking.repository.*;
@@ -21,20 +21,17 @@ public class CinemaService {
     private final MovieSessionRepository sessionRepository;
     private final SeatRepository seatRepository;
     private final BookingRepository bookingRepository;
-    private final PaymentRepository paymentRepository;
     private final UserService userService;
 
     public CinemaService(MovieRepository movieRepository,
                          MovieSessionRepository sessionRepository,
                          SeatRepository seatRepository,
                          BookingRepository bookingRepository,
-                         PaymentRepository paymentRepository,
                          UserService userService) {
         this.movieRepository = movieRepository;
         this.sessionRepository = sessionRepository;
         this.seatRepository = seatRepository;
         this.bookingRepository = bookingRepository;
-        this.paymentRepository = paymentRepository;
         this.userService = userService;
     }
 
@@ -47,16 +44,41 @@ public class CinemaService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Фильм не найден"));
     }
 
-    public Movie createMovie(Movie movie) {
+    public Movie createMovie(MovieRequest request) {
+        Movie movie = new Movie();
+        copyMovieFields(request, movie);
         return movieRepository.save(movie);
     }
 
-    public Movie updateMovie(Long id, Movie newData) {
+    public Movie updateMovie(Long id, MovieRequest request) {
         Movie movie = getMovieById(id);
-        movie.setTitle(newData.getTitle());
-        movie.setDurationMin(newData.getDurationMin());
-        movie.setAgeRating(newData.getAgeRating());
+        copyMovieFields(request, movie);
         return movieRepository.save(movie);
+    }
+
+    private void copyMovieFields(MovieRequest request, Movie movie) {
+        movie.setTitle(request.title().trim());
+        movie.setDurationMin(request.durationMin());
+        movie.setAgeRating(request.ageRating());
+
+        MovieDetails details = movie.getDetails();
+        if (details == null) {
+            details = new MovieDetails();
+            details.setMovie(movie);
+            movie.setDetails(details);
+        }
+        details.setDescription(request.description());
+        details.setPosterUrl(emptyToNull(request.posterUrl()));
+        details.setGenre(request.genre());
+        details.setReleaseDate(request.releaseDate());
+        details.setPremiere(request.premiere());
+    }
+
+    private String emptyToNull(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        return text.trim();
     }
 
     public void deleteMovie(Long id) {
@@ -68,53 +90,62 @@ public class CinemaService {
         return sessionRepository.findAllByOrderBySessionDateAscSessionTimeAsc();
     }
 
+    public List<MovieSession> getSessionsByMovie(Long movieId) {
+        getMovieById(movieId);
+        return sessionRepository.findByMovieMovieIdOrderBySessionDateAscSessionTimeAsc(movieId);
+    }
+
     public MovieSession getSessionById(Long id) {
         return sessionRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Сеанс не найден"));
     }
 
     public MovieSession createSession(SessionRequest request) {
-        if (request.movieId() == null || request.sessionDate() == null || request.sessionTime() == null || request.hallNumber() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Выберите фильм и заполните дату, время и номер зала");
-        }
-
         MovieSession session = new MovieSession();
+        copySessionFields(request, session);
+        return sessionRepository.save(session);
+    }
+
+    public MovieSession updateSession(Long id, SessionRequest request) {
+        MovieSession session = getSessionById(id);
+        copySessionFields(request, session);
+        return sessionRepository.save(session);
+    }
+
+    private void copySessionFields(SessionRequest request, MovieSession session) {
         session.setMovie(getMovieById(request.movieId()));
         session.setSessionDate(request.sessionDate());
         session.setSessionTime(request.sessionTime());
         session.setHallNumber(request.hallNumber());
-        return sessionRepository.save(session);
     }
 
-    @Transactional
     public void deleteSession(Long id) {
         MovieSession session = getSessionById(id);
-        List<Seat> seats = seatRepository.findBySessionSessionIdOrderBySeatIdAsc(id);
-        seatRepository.deleteAll(seats);
-        seatRepository.flush();
         sessionRepository.delete(session);
-    }
-
-    @Transactional
-    public List<Seat> addSeats(Long sessionId, SeatGroupRequest request) {
-        request.validate();
-        MovieSession session = getSessionById(sessionId);
-        String row = request.name().trim().toUpperCase();
-
-        List<Seat> newSeats = new ArrayList<>();
-        for (int i = 1; i <= request.count(); i++) {
-            Seat seat = new Seat();
-            seat.setSession(session);
-            seat.setSeatNumber(row + i);
-            seat.setPrice(request.price());
-            seat.setStatus("Available");
-            newSeats.add(seat);
-        }
-        return seatRepository.saveAllAndFlush(newSeats);
     }
 
     public List<Seat> getSeatsBySession(Long sessionId) {
         return seatRepository.findBySessionSessionIdOrderBySeatIdAsc(sessionId);
+    }
+
+    @Transactional
+    public List<Seat> addSeatRow(Long sessionId, SeatRowRequest request) {
+        MovieSession session = getSessionById(sessionId);
+        String firstSeatNumber = request.rowNumber() + "-1";
+        if (seatRepository.existsBySessionSessionIdAndSeatNumber(sessionId, firstSeatNumber)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ряд " + request.rowNumber() + " уже есть на этом сеансе");
+        }
+
+        List<Seat> newSeats = new ArrayList<>();
+        for (int number = 1; number <= request.seatCount(); number++) {
+            Seat seat = new Seat();
+            seat.setSession(session);
+            seat.setSeatNumber(request.rowNumber() + "-" + number);
+            seat.setPrice(request.price());
+            seat.setStatus("Available");
+            newSeats.add(seat);
+        }
+        return seatRepository.saveAll(newSeats);
     }
 
     public List<Booking> getAllBookings() {
@@ -122,34 +153,25 @@ public class CinemaService {
     }
 
     @Transactional
-    public Booking createBooking(BookingRequest request) {
-        Seat seat = seatRepository.findById(request.seatId())
+    public Booking createBooking(Long seatId, String userEmail) {
+        Seat seat = seatRepository.findById(seatId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Место не найдено"));
 
         if (!seat.getStatus().equals("Available")) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Это место уже занято");
         }
 
-        User user = userService.findOrCreate(request.fullName(), request.email(), request.phone());
+        User user = userService.getByEmail(userEmail);
 
         Booking booking = new Booking();
         booking.setUser(user);
         booking.setSeat(seat);
         booking.setBookingDate(LocalDateTime.now());
         booking.setStatus("Pending");
-        bookingRepository.save(booking);
 
-        Payment payment = new Payment();
-        payment.setBooking(booking);
-        payment.setAmount(seat.getPrice());
-        payment.setPaymentDate(LocalDateTime.now());
-        payment.setStatus("Paid");
-        paymentRepository.save(payment);
-
-        seat.setStatus("Booked");
+        seat.setStatus("Reserved");
         seatRepository.save(seat);
 
-        booking.setStatus("Confirmed");
         return bookingRepository.save(booking);
     }
 
