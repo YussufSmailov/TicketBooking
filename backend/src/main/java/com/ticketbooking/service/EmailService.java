@@ -22,13 +22,18 @@ public class EmailService {
 
     private final ObjectProvider<JavaMailSender> mailSender;
     private final String from;
+    private final String fromName;
     private final long codeMinutes;
 
+    // Имя отправителя задаётся здесь, а не в .properties: Spring читает .properties как ISO-8859-1,
+    // и русские буквы оттуда превращаются в кракозябры.
     public EmailService(ObjectProvider<JavaMailSender> mailSender,
                         @Value("${app.mail.from}") String from,
+                        @Value("${app.mail.from-name:Билеты}") String fromName,
                         @Value("${app.verification.code-minutes:15}") long codeMinutes) {
         this.mailSender = mailSender;
         this.from = from;
+        this.fromName = fromName;
         this.codeMinutes = codeMinutes;
     }
 
@@ -42,12 +47,12 @@ public class EmailService {
         try {
             MimeMessage message = sender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
-            helper.setFrom(from);
+            helper.setFrom(from, fromName);
             helper.setTo(email);
             helper.setSubject("Код подтверждения: " + code);
             helper.setText(plainText(fullName, code), htmlText(fullName, code));
             sender.send(message);
-        } catch (MessagingException | MailException e) {
+        } catch (MessagingException | MailException | java.io.UnsupportedEncodingException e) {
             log.error("Не удалось отправить письмо на {}", email, e);
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                     "Не удалось отправить письмо с кодом. Попробуйте позже");

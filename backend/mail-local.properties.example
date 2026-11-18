@@ -1,0 +1,22 @@
+# Скопируйте этот файл в backend/mail-local.properties.
+# mail-local.properties в .gitignore — пароли не попадут на GitHub.
+
+# ---- Вариант 1 (по умолчанию): Mailpit — локальный почтовый ящик, без регистраций ----
+# Установка: brew install mailpit   Запуск: mailpit
+# Письма с кодами открываются в браузере: http://localhost:8025
+spring.mail.host=localhost
+spring.mail.port=1025
+spring.mail.properties.mail.smtp.auth=false
+spring.mail.properties.mail.smtp.starttls.enable=false
+app.mail.from=no-reply@ticketbooking.kz
+
+# ---- Вариант 2: настоящая отправка через Gmail ----
+# Нужен «Пароль приложения» (16 букв): https://myaccount.google.com/apppasswords
+# Обычный пароль от почты НЕ подойдёт. Закомментируйте вариант 1 и раскомментируйте строки ниже.
+#spring.mail.host=smtp.gmail.com
+#spring.mail.port=587
+#spring.mail.username=your.address@gmail.com
+#spring.mail.password=xxxx xxxx xxxx xxxx
+#spring.mail.properties.mail.smtp.auth=true
+#spring.mail.properties.mail.smtp.starttls.enable=true
+#app.mail.from=your.address@gmail.com
