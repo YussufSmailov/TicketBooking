@@ -1,0 +1,126 @@
+ДЕПЛОЙ ПРОЕКТА "БИЛЕТЫ" — ЧТО НУЖНО ЗНАТЬ
+==========================================
+
+Репозиторий: https://github.com/YussufSmailov/TicketBooking (ветка main)
+
+Состав проекта:
+  backend   — Java 17+, Spring Boot 3.3.5, Maven (папка backend/)
+  frontend  — React 18 + Vite (папка frontend/)
+  база      — PostgreSQL
+
+Как всё работает локально, описано в README.md. Ниже — только то, что важно для хостинга.
+
+
+1. НАСТРОЙКИ ЗАДАЮТСЯ ПЕРЕМЕННЫМИ ОКРУЖЕНИЯ
+-------------------------------------------
+Менять код не нужно. Spring Boot сам подменяет значения из
+backend/src/main/resources/application.properties переменными окружения с похожим именем.
+
+  SPRING_DATASOURCE_URL       адрес базы: jdbc:postgresql://ХОСТ:5432/ИМЯ_БАЗЫ
+  SPRING_DATASOURCE_USERNAME  логин базы
+  SPRING_DATASOURCE_PASSWORD  пароль базы
+  SERVER_PORT                 порт backend, если хостинг выдаёт свой (часто это переменная PORT)
+  APP_CORS_ALLOWED_ORIGIN     адрес сайта на хостинге, например https://bilety.example.com
+                              (ровно так, без "/" в конце, иначе браузер заблокирует запросы)
+
+Необязательно:
+  APP_JWT_SECRET              секрет для токенов входа (минимум 32 символа)
+  APP_ADMIN_PASSWORD          пароль админа (по умолчанию Admin12345)
+
+Внимание: адрес базы на хостингах часто выдают в виде postgresql://user:pass@host:port/db.
+Spring нужен формат jdbc:postgresql://host:port/db, а логин и пароль — отдельными переменными.
+
+
+2. ГЛАВНАЯ ЛОВУШКА: БАЗА СТИРАЕТСЯ ПРИ КАЖДОМ ЗАПУСКЕ
+-----------------------------------------------------
+При старте backend выполняет schema.sql и data.sql. schema.sql начинается с DROP TABLE,
+поэтому при ЛЮБОМ перезапуске сервера пропадают все пользователи, брони и отзывы.
+
+Решение:
+  1) первый запуск оставить как есть — создадутся таблицы и тестовые данные;
+  2) потом задать переменную SPRING_SQL_INIT_MODE=never и перезапустить backend.
+С этого момента база больше не пересоздаётся.
+
+Тестовые данные (сеансы, концерты, матчи) считаются от даты первого запуска.
+Через несколько недель события окажутся в прошлом. Чтобы обновить данные,
+временно уберите SPRING_SQL_INIT_MODE и перезапустите backend (данные пользователей при этом удалятся).
+
+
+3. FRONTEND: АДРЕС API ВШИВАЕТСЯ ПРИ СБОРКЕ
+------------------------------------------
+Команды сборки (в папке frontend/):
+  npm ci
+  npm run build        -> готовый сайт в папке frontend/dist
+
+Переменную VITE_API_URL нужно задать ДО сборки, например:
+  VITE_API_URL=https://api.example.com/api
+
+Без неё сайт будет обращаться к http://localhost:8080/api и на хостинге не заработает.
+Если адрес backend поменялся — frontend нужно пересобрать.
+
+
+4. FRONTEND: ВСЕ АДРЕСА ДОЛЖНЫ ОТДАВАТЬ index.html
+-------------------------------------------------
+Это одностраничное приложение (React Router). Адреса вроде /movies/4, /account, /verify
+не являются файлами. Если хостинг отдаёт 404 при обновлении страницы — включите
+"SPA fallback" / "rewrite all to index.html" (у статических хостингов это обычно одна галочка).
+
+Для nginx:
+  location / { try_files $uri $uri/ /index.html; }
+
+
+5. BACKEND: СБОРКА И ЗАПУСК
+---------------------------
+В папке backend/:
+  mvn -DskipTests package
+  java -jar target/ticket-booking-0.0.1-SNAPSHOT.jar
+
+Тесты (mvn test) при сборке на хостинге лучше пропускать: им нужна локальная база.
+Проверка, что backend жив: GET /api/home должен вернуть JSON.
+
+
+6. ПОЧТА (КОДЫ ПОДТВЕРЖДЕНИЯ ПРИ РЕГИСТРАЦИИ)
+--------------------------------------------
+Файла backend/mail-local.properties в репозитории нет — он локальный.
+
+Без настроек почты письма не отправляются, а код печатается в лог backend строкой:
+  Код подтверждения для name@mail.kz: 123456
+Для теста на хостинге этого достаточно — смотрите код в логах.
+
+Чтобы письма отправлялись, задайте переменные:
+  SPRING_MAIL_HOST, SPRING_MAIL_PORT, SPRING_MAIL_USERNAME, SPRING_MAIL_PASSWORD
+  MAIL_FROM — адрес отправителя
+Подойдёт любой SMTP: Gmail (нужен "пароль приложения"), Brevo, Mailgun и т.п.
+
+Если поднимаете Mailpit (тестовый ящик, образ axllent/mailpit) — у него нет авторизации и TLS.
+Тогда в backend/src/main/resources/application.properties нужно выключить
+spring.mail.properties.mail.smtp.auth и ...starttls.enable (поставить false),
+и закрыть веб-ящик Mailpit паролем (переменная MP_UI_AUTH=логин:пароль),
+иначе любой по ссылке прочитает все коды.
+
+
+7. ТЕСТОВЫЕ АККАУНТЫ И КАРТЫ
+----------------------------
+  Админ:      admin@ticketbooking.kz / Admin12345 (или APP_ADMIN_PASSWORD)
+  Покупатель: amina@gmail.com / Amina12345
+  Карта, оплата проходит:   4242 4242 4242 4242, любой будущий срок, любой CVV
+  Карта, банк отклоняет:    4000 0000 0002 0000
+
+
+8. ГОТОВАЯ НАСТРОЙКА ПОД RAILWAY В ИСТОРИИ GIT
+---------------------------------------------
+Раньше в проекте была готовая настройка под Railway: Dockerfile для backend и frontend,
+профиль prod (база создаётся один раз и не стирается), конфиг nginx и пошаговая инструкция.
+Её удалили, но она осталась в истории.
+
+  Посмотреть:  git show 3d15f03
+
+  Вернуть эти файлы (одной командой, из корня репозитория):
+    git checkout 3d15f03 -- DEPLOY.md backend/Dockerfile backend/.dockerignore backend/railway.json \
+      backend/src/main/resources/application-prod.properties \
+      backend/src/main/java/com/ticketbooking/service/ProdDatabaseInitializer.java \
+      frontend/Dockerfile frontend/.dockerignore frontend/railway.json frontend/nginx.conf.template
+
+  Инструкция по шагам будет в DEPLOY.md.
+
+Если деплоите на Railway или через Docker — проще всего начать с неё.
