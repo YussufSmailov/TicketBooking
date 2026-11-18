@@ -7,6 +7,8 @@
 
 ## Как запустить
 
+Деплой на хостинг (Railway) — см. [DEPLOY.md](DEPLOY.md).
+
 ### 1. База данных
 1. Установите PostgreSQL и создайте базу: `CREATE DATABASE ticket_booking;`
 2. Логин и пароль базы указаны в `backend/src/main/resources/application.properties` (по умолчанию `postgres` / `12345`).
