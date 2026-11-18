@@ -56,7 +56,7 @@ public class HomeService {
                 continue;
             }
 
-            HomeCard card = movieCard(movie, nextSession.get(), today);
+            HomeCard card = movieCard(movie, nextSession.get());
             LocalDate releaseDate = details != null ? details.getReleaseDate() : null;
 
             if (releaseDate != null && releaseDate.isAfter(today)) {
@@ -73,23 +73,12 @@ public class HomeService {
 
         List<HomeCard> concerts = new ArrayList<>();
         for (Concert concert : concertRepository.findByConcertDateGreaterThanEqualOrderByConcertDateAsc(today)) {
-            BigDecimal minPrice = concertSeatRepository.findFirstByConcertConcertIdOrderByPriceAsc(concert.getConcertId())
-                    .map(ConcertSeat::getPrice)
-                    .orElse(null);
-            concerts.add(new HomeCard("concert", concert.getConcertId(), concert.getArtist(),
-                    concert.getTitle() + ", " + concert.getCity(), concert.getConcertDate(), concert.getConcertTime(),
-                    concert.getPosterUrl(), minPrice));
+            concerts.add(concertCard(concert));
         }
 
         List<HomeCard> matches = new ArrayList<>();
         for (FootballMatch match : matchRepository.findByMatchDateGreaterThanEqualOrderByMatchDateAscMatchTimeAsc(today)) {
-            BigDecimal minPrice = matchSeatRepository.findFirstByMatchMatchIdOrderByPriceAsc(match.getMatchId())
-                    .map(MatchSeat::getPrice)
-                    .orElse(null);
-            matches.add(new HomeCard("match", match.getMatchId(),
-                    match.getHomeTeam().getName() + " — " + match.getAwayTeam().getName(),
-                    match.getHomeTeam().getStadium(), match.getMatchDate(), match.getMatchTime(),
-                    match.getPosterUrl(), minPrice));
+            matches.add(matchCard(match));
         }
 
         List<HomeSection> sections = new ArrayList<>();
@@ -101,17 +90,45 @@ public class HomeService {
         return sections;
     }
 
-    private HomeCard movieCard(Movie movie, MovieSession nextSession, LocalDate today) {
+    public HomeCard movieCard(Movie movie) {
+        Optional<MovieSession> nextSession = sessionRepository
+                .findFirstByMovieMovieIdAndSessionDateGreaterThanEqualOrderBySessionDateAscSessionTimeAsc(movie.getMovieId(), LocalDate.now());
+        return movieCard(movie, nextSession.orElse(null));
+    }
+
+    private HomeCard movieCard(Movie movie, MovieSession nextSession) {
         MovieDetails details = movie.getDetails();
         BigDecimal minPrice = seatRepository
-                .findFirstBySessionMovieMovieIdAndSessionSessionDateGreaterThanEqualOrderByPriceAsc(movie.getMovieId(), today)
+                .findFirstBySessionMovieMovieIdAndSessionSessionDateGreaterThanEqualOrderByPriceAsc(movie.getMovieId(), LocalDate.now())
                 .map(Seat::getPrice)
                 .orElse(null);
         String genre = details != null && details.getGenre() != null ? details.getGenre() : "Кино";
         String posterUrl = details != null ? details.getPosterUrl() : null;
         return new HomeCard("movie", movie.getMovieId(), movie.getTitle(),
-                genre + ", " + movie.getAgeRating(), nextSession.getSessionDate(), nextSession.getSessionTime(),
-                posterUrl, minPrice);
+                genre + ", " + movie.getDurationMin() + " мин, " + movie.getAgeRating(),
+                nextSession != null ? nextSession.getSessionDate() : null,
+                nextSession != null ? nextSession.getSessionTime() : null,
+                posterUrl, minPrice, movie.getRating(), movie.getReviewCount(), null, null);
+    }
+
+    public HomeCard concertCard(Concert concert) {
+        BigDecimal minPrice = concertSeatRepository.findFirstByConcertConcertIdOrderByPriceAsc(concert.getConcertId())
+                .map(ConcertSeat::getPrice)
+                .orElse(null);
+        return new HomeCard("concert", concert.getConcertId(), concert.getArtist(),
+                concert.getTitle() + ", " + concert.getCity(), concert.getConcertDate(), concert.getConcertTime(),
+                concert.getPosterUrl(), minPrice, concert.getRating(), concert.getReviewCount(), null, null);
+    }
+
+    public HomeCard matchCard(FootballMatch match) {
+        BigDecimal minPrice = matchSeatRepository.findFirstByMatchMatchIdOrderByPriceAsc(match.getMatchId())
+                .map(MatchSeat::getPrice)
+                .orElse(null);
+        return new HomeCard("match", match.getMatchId(),
+                match.getHomeTeam().getName() + " — " + match.getAwayTeam().getName(),
+                match.getHomeTeam().getStadium(), match.getMatchDate(), match.getMatchTime(),
+                match.getPosterUrl(), minPrice, match.getRating(), match.getReviewCount(),
+                match.getHomeTeam().getLogoUrl(), match.getAwayTeam().getLogoUrl());
     }
 
     private List<HomeCard> firstCards(List<HomeCard> cards) {

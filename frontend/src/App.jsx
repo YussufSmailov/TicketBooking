@@ -13,6 +13,8 @@ import ConcertPage from "./pages/ConcertPage";
 import MatchPage from "./pages/MatchPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
+import VerifyEmailPage from "./pages/VerifyEmailPage";
+import SearchPage from "./pages/SearchPage";
 import AccountPage from "./pages/AccountPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import AdminPage from "./admin/AdminPage";
@@ -49,6 +51,8 @@ function App() {
           <Route path="/matches/:id" element={<MatchPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/verify" element={<VerifyEmailPage />} />
+          <Route path="/search" element={<SearchPage />} />
           <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
           <Route path="/admin" element={<RequireAdmin><AdminPage /></RequireAdmin>} />
           <Route path="*" element={<NotFoundPage />} />

@@ -14,6 +14,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -60,11 +61,26 @@ class PaymentControllerTest {
     @Test
     @WithMockUser(username = "amina@gmail.com")
     void concertPaymentGoesToConcertMethod() throws Exception {
-        PaymentResult result = new PaymentResult("concert", 3L, new BigDecimal("12000"), "Paid", "Confirmed", "CON-000003", "ok");
+        PaymentResult result = new PaymentResult("concert", 3L, new BigDecimal("12000"), "Paid", "Confirmed", "CON-000003", "ok",
+                List.of(3L), List.of("CON-000003"));
         when(paymentService.payConcertBooking(eq(3L), eq("amina@gmail.com"), any())).thenReturn(result);
 
         mockMvc.perform(post("/api/payments/concert/3").contentType(MediaType.APPLICATION_JSON).content("{\"cardId\": 1}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ticketNumber").value("CON-000003"));
+    }
+
+    @Test
+    @WithMockUser(username = "amina@gmail.com")
+    void severalBookingsArePaidInOneRequest() throws Exception {
+        PaymentResult result = new PaymentResult("cinema", 7L, new BigDecimal("5000"), "Paid", "Confirmed", "CIN-000007", "ok",
+                List.of(7L, 8L), List.of("CIN-000007", "CIN-000008"));
+        when(paymentService.payCinemaBookings(eq(List.of(7L, 8L)), eq("amina@gmail.com"), any())).thenReturn(result);
+
+        mockMvc.perform(post("/api/payments/cinema").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cardId\": 1, \"bookingIds\": [7, 8]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ticketNumbers.length()").value(2))
+                .andExpect(jsonPath("$.amount").value(5000));
     }
 }

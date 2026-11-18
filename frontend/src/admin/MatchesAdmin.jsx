@@ -130,7 +130,7 @@ function MatchesAdmin() {
         </label>
         <label>
           Ссылка на постер
-          <input type="url" value={form.posterUrl} maxLength={300} placeholder="https://picsum.photos/seed/name/400/600" onChange={(e) => changeField("posterUrl", e.target.value)} />
+          <input type="text" value={form.posterUrl} maxLength={300} pattern="(https?://|/)\S+" title="http://, https:// или путь вида /images/..." placeholder="/images/movies/poster.jpg или https://..." onChange={(e) => changeField("posterUrl", e.target.value)} />
           <FieldError message={fieldErrors.posterUrl} />
         </label>
         <label className="admin-wide">

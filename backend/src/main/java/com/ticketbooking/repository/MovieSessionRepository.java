@@ -11,6 +11,8 @@ public interface MovieSessionRepository extends JpaRepository<MovieSession, Long
 
     List<MovieSession> findAllByOrderBySessionDateAscSessionTimeAsc();
 
+    List<MovieSession> findBySessionDate(LocalDate date);
+
     List<MovieSession> findByMovieMovieIdOrderBySessionDateAscSessionTimeAsc(Long movieId);
 
     Optional<MovieSession> findFirstByMovieMovieIdAndSessionDateGreaterThanEqualOrderBySessionDateAscSessionTimeAsc(Long movieId, LocalDate date);

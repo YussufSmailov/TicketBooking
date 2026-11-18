@@ -13,15 +13,15 @@ const stage = (
   </g>
 );
 
-function ConcertHall({ seats, selectedSeat, onSelect }) {
+function ConcertHall({ seats, selectedSeats, onToggle }) {
   return (
     <ZoneMap
       viewBox="0 0 600 430"
       shapes={concertShapes}
       background={stage}
       seats={seats}
-      selectedSeat={selectedSeat}
-      onSelect={onSelect}
+      selectedSeats={selectedSeats}
+      onToggle={onToggle}
       zoneWord="Зона"
     />
   );

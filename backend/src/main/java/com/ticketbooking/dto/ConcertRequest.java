@@ -1,9 +1,11 @@
 package com.ticketbooking.dto;
 
 import jakarta.validation.constraints.FutureOrPresent;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
@@ -33,11 +35,18 @@ public record ConcertRequest(
         @NotNull(message = "Введите время концерта")
         LocalTime concertTime,
 
+        @Positive(message = "Длительность должна быть больше 0")
+        @Max(value = 600, message = "Длительность не больше 600 минут")
+        Integer durationMin,
+
+        @Size(max = 50, message = "Жанр не длиннее 50 символов")
+        String genre,
+
         @Size(max = 2000, message = "Описание не длиннее 2000 символов")
         String description,
 
         @Size(max = 300, message = "Ссылка не длиннее 300 символов")
-        @Pattern(regexp = "^(https?://\\S+)?$", message = "Ссылка на постер должна начинаться с http:// или https://")
+        @Pattern(regexp = ValidationRules.POSTER_URL, message = ValidationRules.POSTER_URL_MESSAGE)
         String posterUrl
 ) {
 }

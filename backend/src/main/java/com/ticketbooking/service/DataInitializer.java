@@ -64,14 +64,14 @@ public class DataInitializer implements CommandLineRunner {
         }
 
         if (credentialsRepository.findById(admin.getUserId()).isEmpty()) {
-            authService.saveCredentials(admin, adminPassword, AuthService.ROLE_ADMIN);
+            authService.saveCredentials(admin, adminPassword, AuthService.ROLE_ADMIN, true);
         }
     }
 
     private void givePasswordToDemoUser() {
         Optional<User> demoUser = userRepository.findByEmail(demoUserEmail);
         if (demoUser.isPresent() && credentialsRepository.findById(demoUser.get().getUserId()).isEmpty()) {
-            authService.saveCredentials(demoUser.get(), demoUserPassword, AuthService.ROLE_CUSTOMER);
+            authService.saveCredentials(demoUser.get(), demoUserPassword, AuthService.ROLE_CUSTOMER, true);
         }
     }
 }

@@ -15,7 +15,7 @@ import {
 } from "../validation";
 
 function RegisterPage() {
-  const { user, logIn } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const nextParam = searchParams.get("next");
@@ -36,8 +36,10 @@ function RegisterPage() {
     setSending(true);
     try {
       const response = await register(form);
-      logIn(response);
-      navigate(next, { replace: true });
+      const nextPart = next === "/" ? "" : `&next=${encodeURIComponent(next)}`;
+      navigate(`/verify?email=${encodeURIComponent(response.email)}${nextPart}`, {
+        state: { sent: true, resendAfterSeconds: response.resendAfterSeconds }
+      });
     } catch (e) {
       setError(e.message);
       setFieldErrors(e.fieldErrors || {});
@@ -112,8 +114,9 @@ function RegisterPage() {
           <FieldError message={fieldErrors.password} />
         </label>
         {error && <p className="error">{error}</p>}
+        <p className="muted small">После регистрации мы пришлём на email 6-значный код подтверждения.</p>
         <button className="primary-button" type="submit" disabled={sending}>
-          {sending ? "Создаём аккаунт..." : "Зарегистрироваться"}
+          {sending ? "Отправляем код..." : "Зарегистрироваться"}
         </button>
         <p className="muted">
           Уже есть аккаунт? <Link className="link-button" to={next === "/" ? "/login" : `/login?next=${encodeURIComponent(next)}`}>Войти</Link>

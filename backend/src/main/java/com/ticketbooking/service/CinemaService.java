@@ -1,10 +1,12 @@
 package com.ticketbooking.service;
 
+import com.ticketbooking.dto.MovieFilter;
 import com.ticketbooking.dto.MovieRequest;
 import com.ticketbooking.dto.SeatRowRequest;
 import com.ticketbooking.dto.SessionRequest;
 import com.ticketbooking.entity.*;
 import com.ticketbooking.repository.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,7 +14,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class CinemaService {
@@ -22,21 +28,70 @@ public class CinemaService {
     private final SeatRepository seatRepository;
     private final BookingRepository bookingRepository;
     private final UserService userService;
+    private final ReviewService reviewService;
+
+    @Value("${app.booking.max-seats:6}")
+    private int maxSeats = 6;
 
     public CinemaService(MovieRepository movieRepository,
                          MovieSessionRepository sessionRepository,
                          SeatRepository seatRepository,
                          BookingRepository bookingRepository,
-                         UserService userService) {
+                         UserService userService,
+                         ReviewService reviewService) {
         this.movieRepository = movieRepository;
         this.sessionRepository = sessionRepository;
         this.seatRepository = seatRepository;
         this.bookingRepository = bookingRepository;
         this.userService = userService;
+        this.reviewService = reviewService;
     }
 
     public List<Movie> getAllMovies() {
         return movieRepository.findAll();
+    }
+
+    public List<Movie> searchMovies(MovieFilter filter) {
+        Set<Long> moviesOnDate = null;
+        if (filter.date() != null) {
+            moviesOnDate = sessionRepository.findBySessionDate(filter.date()).stream()
+                    .map(session -> session.getMovie().getMovieId())
+                    .collect(Collectors.toSet());
+        }
+
+        List<Movie> result = new ArrayList<>();
+        for (Movie movie : movieRepository.findAll()) {
+            MovieDetails details = movie.getDetails();
+            String genre = details != null ? details.getGenre() : null;
+            String description = details != null ? details.getDescription() : null;
+
+            if (!TextSearch.matches(filter.q(), movie.getTitle(), genre, description)) continue;
+            if (!TextSearch.sameText(filter.genre(), genre)) continue;
+            if (!TextSearch.sameText(filter.ageRating(), movie.getAgeRating())) continue;
+            if (filter.minRating() != null && (movie.getRating() == null || movie.getRating() < filter.minRating())) continue;
+            if (filter.minDuration() != null && movie.getDurationMin() < filter.minDuration()) continue;
+            if (filter.maxDuration() != null && movie.getDurationMin() > filter.maxDuration()) continue;
+            if (moviesOnDate != null && !moviesOnDate.contains(movie.getMovieId())) continue;
+            result.add(movie);
+        }
+
+        result.sort(movieOrder(filter.sort()));
+        return result;
+    }
+
+    private Comparator<Movie> movieOrder(String sort) {
+        Comparator<Movie> byTitle = Comparator.comparing(Movie::getTitle, String.CASE_INSENSITIVE_ORDER);
+        if (sort == null || sort.isBlank() || sort.equals("rating")) {
+            return Comparator.comparing(Movie::getRating, Comparator.nullsLast(Comparator.reverseOrder())).thenComparing(byTitle);
+        }
+        return switch (sort) {
+            case "title" -> byTitle;
+            case "duration" -> Comparator.comparing(Movie::getDurationMin).thenComparing(byTitle);
+            case "durationDesc" -> Comparator.comparing(Movie::getDurationMin, Comparator.reverseOrder()).thenComparing(byTitle);
+            case "release" -> Comparator.comparing((Movie movie) -> movie.getDetails() != null ? movie.getDetails().getReleaseDate() : null,
+                    Comparator.nullsLast(Comparator.reverseOrder())).thenComparing(byTitle);
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Неизвестная сортировка: " + sort);
+        };
     }
 
     public Movie getMovieById(Long id) {
@@ -81,8 +136,10 @@ public class CinemaService {
         return text.trim();
     }
 
+    @Transactional
     public void deleteMovie(Long id) {
         Movie movie = getMovieById(id);
+        reviewService.deleteReviewsOf("movie", id);
         movieRepository.delete(movie);
     }
 
@@ -154,25 +211,39 @@ public class CinemaService {
 
     @Transactional
     public Booking createBooking(Long seatId, String userEmail) {
-        Seat seat = seatRepository.findById(seatId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Место не найдено"));
+        return createBookings(List.of(seatId), userEmail).get(0);
+    }
 
-        if (!seat.getStatus().equals("Available")) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Это место уже занято");
+    /**
+     * Бронирует сразу несколько мест одного сеанса. Если хоть одно место занято, не бронируется ни одно.
+     */
+    @Transactional
+    public List<Booking> createBookings(List<Long> seatIds, String userEmail) {
+        SeatSelection.check(seatIds, maxSeats);
+        List<Seat> seats = seatRepository.findAllById(seatIds);
+        SeatSelection.checkAllFound(seatIds.size(), seats.size());
+
+        Set<Long> sessions = new HashSet<>();
+        for (Seat seat : seats) {
+            sessions.add(seat.getSession().getSessionId());
+            SeatSelection.checkAvailable(seat.getStatus());
         }
+        SeatSelection.checkSameEvent(sessions);
 
         User user = userService.getByEmail(userEmail);
-
-        Booking booking = new Booking();
-        booking.setUser(user);
-        booking.setSeat(seat);
-        booking.setBookingDate(LocalDateTime.now());
-        booking.setStatus("Pending");
-
-        seat.setStatus("Reserved");
-        seatRepository.save(seat);
-
-        return bookingRepository.save(booking);
+        LocalDateTime now = LocalDateTime.now();
+        List<Booking> bookings = new ArrayList<>();
+        for (Seat seat : seats) {
+            Booking booking = new Booking();
+            booking.setUser(user);
+            booking.setSeat(seat);
+            booking.setBookingDate(now);
+            booking.setStatus("Pending");
+            seat.setStatus("Reserved");
+            bookings.add(booking);
+        }
+        seatRepository.saveAll(seats);
+        return bookingRepository.saveAll(bookings);
     }
 
     @Transactional

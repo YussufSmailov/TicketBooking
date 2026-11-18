@@ -27,6 +27,11 @@ function LoginPage() {
       logIn(response);
       navigate(next, { replace: true });
     } catch (e) {
+      if (e.code === "EMAIL_NOT_VERIFIED") {
+        const nextPart = next === "/" ? "" : `&next=${encodeURIComponent(next)}`;
+        navigate(`/verify?email=${encodeURIComponent(e.email || email)}${nextPart}`, { state: { notVerified: true } });
+        return;
+      }
       setError(e.message);
       setFieldErrors(e.fieldErrors || {});
     } finally {

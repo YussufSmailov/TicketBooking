@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import SeatRows from "./SeatRows";
 import SeatLegend from "./SeatLegend";
 
-function CinemaHall({ seats, selectedSeat, onSelect }) {
+function CinemaHall({ seats, selectedSeats, onToggle }) {
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -21,7 +21,7 @@ function CinemaHall({ seats, selectedSeat, onSelect }) {
             <path d="M 40 50 Q 300 0 560 50" fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round" />
             <text x="300" y="56" textAnchor="middle" fontSize="14" fill="currentColor" letterSpacing="6">ЭКРАН</text>
           </svg>
-          <SeatRows seats={seats} selectedSeat={selectedSeat} onSelect={onSelect} withAisles={true} />
+          <SeatRows seats={seats} selectedSeats={selectedSeats} onToggle={onToggle} withAisles={true} />
         </div>
       </div>
       <SeatLegend />

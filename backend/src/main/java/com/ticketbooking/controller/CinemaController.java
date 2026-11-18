@@ -1,6 +1,7 @@
 package com.ticketbooking.controller;
 
 import com.ticketbooking.dto.BookingRequest;
+import com.ticketbooking.dto.MovieFilter;
 import com.ticketbooking.dto.MovieRequest;
 import com.ticketbooking.dto.SeatRowRequest;
 import com.ticketbooking.dto.SessionRequest;
@@ -27,8 +28,8 @@ public class CinemaController {
     }
 
     @GetMapping("/movies")
-    public List<Movie> getAllMovies() {
-        return cinemaService.getAllMovies();
+    public List<Movie> getMovies(@ModelAttribute MovieFilter filter) {
+        return cinemaService.searchMovies(filter);
     }
 
     @GetMapping("/movies/{id}")
@@ -103,8 +104,8 @@ public class CinemaController {
 
     @PostMapping("/bookings")
     @ResponseStatus(HttpStatus.CREATED)
-    public Booking createBooking(@Valid @RequestBody BookingRequest request, Principal principal) {
-        return cinemaService.createBooking(request.seatId(), principal.getName());
+    public List<Booking> createBooking(@RequestBody BookingRequest request, Principal principal) {
+        return cinemaService.createBookings(request.allSeatIds(), principal.getName());
     }
 
     @PutMapping("/bookings/{id}/cancel")

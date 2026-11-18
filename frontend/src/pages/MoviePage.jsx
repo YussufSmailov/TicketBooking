@@ -1,9 +1,12 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getMovie, getMovieSessions } from "../api";
 import { useData } from "../useData";
-import { formatDate, formatTime } from "../format";
+import { formatDate, formatDuration, formatTime } from "../format";
 import StatusMessage from "../components/StatusMessage";
 import Poster from "../components/Poster";
+import Reviews from "../components/Reviews";
+import { RatingBadge } from "../components/Stars";
 
 function groupByDate(sessions) {
   const days = [];
@@ -22,6 +25,7 @@ function MoviePage() {
   const { id } = useParams();
   const movie = useData(() => getMovie(id), [id]);
   const sessions = useData(() => getMovieSessions(id), [id]);
+  const [summary, setSummary] = useState(null);
 
   if (movie.loading || movie.error) {
     return <StatusMessage loading={movie.loading} error={movie.error} onRetry={movie.reload} skeleton="page" />;
@@ -39,8 +43,13 @@ function MoviePage() {
           {details.premiere && <span className="hero-badge">Премьера</span>}
           <h2>{movie.data.title}</h2>
           <p className="muted">
-            {details.genre ? `${details.genre}, ` : ""}{movie.data.durationMin} мин, {movie.data.ageRating}
+            {details.genre ? `${details.genre}, ` : ""}{formatDuration(movie.data.durationMin)}, {movie.data.ageRating}
           </p>
+          <RatingBadge
+            rating={summary ? summary.average : movie.data.rating}
+            count={summary ? summary.count : movie.data.reviewCount}
+            href="#reviews"
+          />
           {details.releaseDate && <p className="muted">В прокате с {formatDate(details.releaseDate)}</p>}
           {details.description && <p className="event-description">{details.description}</p>}
         </div>
@@ -68,6 +77,8 @@ function MoviePage() {
           </ul>
         </div>
       ))}
+
+      <Reviews eventType="movie" eventId={movie.data.movieId} onSummary={setSummary} />
     </section>
   );
 }

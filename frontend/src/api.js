@@ -74,6 +74,8 @@ export async function request(url, options = {}) {
     }
     const error = new Error(data.message || "Ошибка сервера");
     error.status = response.status;
+    error.code = data.error || null;
+    error.email = data.email || null;
     error.fieldErrors = data.errors || {};
     throw error;
   }
@@ -90,13 +92,25 @@ export async function getSeats(category, eventId) {
   return data.map(config.toSeat);
 }
 
-export function createBooking(category, booking) {
+export function createBooking(category, seatIds) {
   const config = categories[category];
-  return request(config.bookingUrl, { method: "POST", body: booking });
+  return request(config.bookingUrl, { method: "POST", body: { seatIds: seatIds } });
 }
 
-export function getMovies() {
-  return request(`${API_URL}/cinema/movies`);
+function withQuery(url, params) {
+  const query = new URLSearchParams();
+  Object.keys(params || {}).forEach((key) => {
+    const value = params[key];
+    if (value !== undefined && value !== null && value !== "") {
+      query.set(key, value);
+    }
+  });
+  const text = query.toString();
+  return text ? `${url}?${text}` : url;
+}
+
+export function getMovies(filters) {
+  return request(withQuery(`${API_URL}/cinema/movies`, filters));
 }
 
 export function getMovie(id) {
@@ -115,16 +129,36 @@ export function getSession(id) {
   return request(`${API_URL}/cinema/sessions/${id}`);
 }
 
-export function getConcerts() {
-  return request(`${API_URL}/concert/concerts`);
+export function getConcerts(filters) {
+  return request(withQuery(`${API_URL}/concert/concerts`, filters));
 }
 
 export function getConcert(id) {
   return request(`${API_URL}/concert/concerts/${id}`);
 }
 
-export function getMatches() {
-  return request(`${API_URL}/sport/matches`);
+export function getMatches(filters) {
+  return request(withQuery(`${API_URL}/sport/matches`, filters));
+}
+
+export function getTeams() {
+  return request(`${API_URL}/sport/teams`);
+}
+
+export function searchEvents(query) {
+  return request(withQuery(`${API_URL}/search`, { q: query }));
+}
+
+export function getReviews(eventType, eventId) {
+  return request(`${API_URL}/reviews/${eventType}/${eventId}`);
+}
+
+export function saveReview(eventType, eventId, review) {
+  return request(`${API_URL}/reviews/${eventType}/${eventId}`, { method: "POST", body: review });
+}
+
+export function deleteReview(reviewId) {
+  return request(`${API_URL}/reviews/${reviewId}`, { method: "DELETE" });
 }
 
 export function getMatch(id) {
@@ -135,6 +169,14 @@ export function register(form) {
   return request(`${API_URL}/auth/register`, { method: "POST", body: form });
 }
 
+export function verifyEmail(email, code) {
+  return request(`${API_URL}/auth/verify`, { method: "POST", body: { email: email, code: code } });
+}
+
+export function resendCode(email) {
+  return request(`${API_URL}/auth/resend-code`, { method: "POST", body: { email: email } });
+}
+
 export function login(form) {
   return request(`${API_URL}/auth/login`, { method: "POST", body: form });
 }
@@ -143,8 +185,8 @@ export function getMe() {
   return request(`${API_URL}/me`);
 }
 
-export function payBooking(type, bookingId, payment) {
-  return request(`${API_URL}/payments/${type}/${bookingId}`, { method: "POST", body: payment });
+export function payBookings(type, bookingIds, payment) {
+  return request(`${API_URL}/payments/${type}`, { method: "POST", body: { ...payment, bookingIds: bookingIds } });
 }
 
 export function getMyCards() {

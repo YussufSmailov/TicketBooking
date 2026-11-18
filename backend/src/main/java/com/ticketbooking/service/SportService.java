@@ -1,5 +1,6 @@
 package com.ticketbooking.service;
 
+import com.ticketbooking.dto.MatchFilter;
 import com.ticketbooking.dto.MatchRequest;
 import com.ticketbooking.dto.ZoneSeatRowRequest;
 import com.ticketbooking.entity.FootballMatch;
@@ -11,6 +12,7 @@ import com.ticketbooking.repository.FootballMatchRepository;
 import com.ticketbooking.repository.MatchBookingRepository;
 import com.ticketbooking.repository.MatchSeatRepository;
 import com.ticketbooking.repository.TeamRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,7 +20,10 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class SportService {
@@ -28,17 +33,23 @@ public class SportService {
     private final MatchSeatRepository seatRepository;
     private final MatchBookingRepository bookingRepository;
     private final UserService userService;
+    private final ReviewService reviewService;
+
+    @Value("${app.booking.max-seats:6}")
+    private int maxSeats = 6;
 
     public SportService(TeamRepository teamRepository,
                         FootballMatchRepository matchRepository,
                         MatchSeatRepository seatRepository,
                         MatchBookingRepository bookingRepository,
-                        UserService userService) {
+                        UserService userService,
+                        ReviewService reviewService) {
         this.teamRepository = teamRepository;
         this.matchRepository = matchRepository;
         this.seatRepository = seatRepository;
         this.bookingRepository = bookingRepository;
         this.userService = userService;
+        this.reviewService = reviewService;
     }
 
     public List<Team> getAllTeams() {
@@ -52,6 +63,34 @@ public class SportService {
 
     public List<FootballMatch> getAllMatches() {
         return matchRepository.findAllByOrderByMatchDateAscMatchTimeAsc();
+    }
+
+    public List<FootballMatch> searchMatches(MatchFilter filter) {
+        List<FootballMatch> result = new ArrayList<>();
+        for (FootballMatch match : matchRepository.findAllByOrderByMatchDateAscMatchTimeAsc()) {
+            Team home = match.getHomeTeam();
+            Team away = match.getAwayTeam();
+            if (!TextSearch.matches(filter.q(), home.getName(), away.getName(), home.getCity(), away.getCity(),
+                    home.getStadium(), match.getTournament(), match.getRoundName(), match.getDescription())) continue;
+            if (filter.teamId() != null && !filter.teamId().equals(home.getTeamId()) && !filter.teamId().equals(away.getTeamId())) continue;
+            if (filter.minRating() != null && (match.getRating() == null || match.getRating() < filter.minRating())) continue;
+            if (filter.dateFrom() != null && match.getMatchDate().isBefore(filter.dateFrom())) continue;
+            if (filter.dateTo() != null && match.getMatchDate().isAfter(filter.dateTo())) continue;
+            result.add(match);
+        }
+        result.sort(matchOrder(filter.sort()));
+        return result;
+    }
+
+    private Comparator<FootballMatch> matchOrder(String sort) {
+        Comparator<FootballMatch> byDate = Comparator.comparing(FootballMatch::getMatchDate).thenComparing(FootballMatch::getMatchTime);
+        if (sort == null || sort.isBlank() || sort.equals("date")) {
+            return byDate;
+        }
+        if (sort.equals("rating")) {
+            return Comparator.comparing(FootballMatch::getRating, Comparator.nullsLast(Comparator.reverseOrder())).thenComparing(byDate);
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Неизвестная сортировка: " + sort);
     }
 
     public FootballMatch getMatchById(Long id) {
@@ -85,8 +124,10 @@ public class SportService {
         match.setPosterUrl(request.posterUrl() == null || request.posterUrl().isBlank() ? null : request.posterUrl().trim());
     }
 
+    @Transactional
     public void deleteMatch(Long id) {
         FootballMatch match = getMatchById(id);
+        reviewService.deleteReviewsOf("match", id);
         matchRepository.delete(match);
     }
 
@@ -122,25 +163,39 @@ public class SportService {
 
     @Transactional
     public MatchBooking createBooking(Long seatId, String userEmail) {
-        MatchSeat seat = seatRepository.findById(seatId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Место не найдено"));
+        return createBookings(List.of(seatId), userEmail).get(0);
+    }
 
-        if (!seat.getStatus().equals("Available")) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Это место уже занято");
+    /**
+     * Бронирует сразу несколько мест одного матча. Если хоть одно место занято, не бронируется ни одно.
+     */
+    @Transactional
+    public List<MatchBooking> createBookings(List<Long> seatIds, String userEmail) {
+        SeatSelection.check(seatIds, maxSeats);
+        List<MatchSeat> seats = seatRepository.findAllById(seatIds);
+        SeatSelection.checkAllFound(seatIds.size(), seats.size());
+
+        Set<Long> events = new HashSet<>();
+        for (MatchSeat seat : seats) {
+            events.add(seat.getMatch().getMatchId());
+            SeatSelection.checkAvailable(seat.getStatus());
         }
+        SeatSelection.checkSameEvent(events);
 
         User user = userService.getByEmail(userEmail);
-
-        MatchBooking booking = new MatchBooking();
-        booking.setUser(user);
-        booking.setSeat(seat);
-        booking.setBookingDate(LocalDateTime.now());
-        booking.setStatus("Pending");
-
-        seat.setStatus("Reserved");
-        seatRepository.save(seat);
-
-        return bookingRepository.save(booking);
+        LocalDateTime now = LocalDateTime.now();
+        List<MatchBooking> bookings = new ArrayList<>();
+        for (MatchSeat seat : seats) {
+            MatchBooking booking = new MatchBooking();
+            booking.setUser(user);
+            booking.setSeat(seat);
+            booking.setBookingDate(now);
+            booking.setStatus("Pending");
+            seat.setStatus("Reserved");
+            bookings.add(booking);
+        }
+        seatRepository.saveAll(seats);
+        return bookingRepository.saveAll(bookings);
     }
 
     @Transactional

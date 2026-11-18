@@ -61,15 +61,15 @@ const field = (
   </g>
 );
 
-function StadiumMap({ seats, selectedSeat, onSelect }) {
+function StadiumMap({ seats, selectedSeats, onToggle }) {
   return (
     <ZoneMap
       viewBox="0 0 600 430"
       shapes={stadiumShapes}
       background={field}
       seats={seats}
-      selectedSeat={selectedSeat}
-      onSelect={onSelect}
+      selectedSeats={selectedSeats}
+      onToggle={onToggle}
       zoneWord="Сектор"
     />
   );

@@ -1,6 +1,7 @@
 package com.ticketbooking.controller;
 
 import com.ticketbooking.dto.BookingRequest;
+import com.ticketbooking.dto.ConcertFilter;
 import com.ticketbooking.dto.ConcertRequest;
 import com.ticketbooking.dto.ZoneSeatRowRequest;
 import com.ticketbooking.entity.Concert;
@@ -25,8 +26,8 @@ public class ConcertController {
     }
 
     @GetMapping("/concerts")
-    public List<Concert> getAllConcerts() {
-        return concertService.getAllConcerts();
+    public List<Concert> getConcerts(@ModelAttribute ConcertFilter filter) {
+        return concertService.searchConcerts(filter);
     }
 
     @GetMapping("/concerts/{id}")
@@ -69,8 +70,8 @@ public class ConcertController {
 
     @PostMapping("/bookings")
     @ResponseStatus(HttpStatus.CREATED)
-    public ConcertBooking createBooking(@Valid @RequestBody BookingRequest request, Principal principal) {
-        return concertService.createBooking(request.seatId(), principal.getName());
+    public List<ConcertBooking> createBooking(@RequestBody BookingRequest request, Principal principal) {
+        return concertService.createBookings(request.allSeatIds(), principal.getName());
     }
 
     @PutMapping("/bookings/{id}/cancel")

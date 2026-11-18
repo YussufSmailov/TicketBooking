@@ -12,6 +12,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 
 @Service
 public class PaymentService {
@@ -30,6 +33,9 @@ public class PaymentService {
 
     @Value("${app.booking.reservation-minutes:10}")
     private long reservationMinutes = 10;
+
+    @Value("${app.booking.max-seats:6}")
+    private int maxSeats = 6;
 
     public PaymentService(BookingRepository bookingRepository,
                           SeatRepository seatRepository,
@@ -59,100 +65,151 @@ public class PaymentService {
         return !"0000".equals(last4);
     }
 
-    @Transactional
     public PaymentResult payCinemaBooking(Long bookingId, String userEmail, PaymentRequest request) {
-        Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Бронирование не найдено"));
-        User user = userService.getByEmail(userEmail);
-        checkCanPay(booking.getUser(), user, booking.getStatus(), booking.getBookingDate());
-
-        String last4 = cardService.findLast4ForPayment(user, request);
-        boolean approved = isApproved(last4);
-        Seat seat = booking.getSeat();
-
-        Payment payment = new Payment();
-        payment.setBooking(booking);
-        payment.setAmount(seat.getPrice());
-        payment.setPaymentDate(LocalDateTime.now());
-        payment.setStatus(approved ? "Paid" : "Failed");
-        paymentRepository.save(payment);
-
-        if (approved) {
-            booking.setStatus("Confirmed");
-            seat.setStatus("Booked");
-            saveCardIfAsked(user, request);
-        } else {
-            booking.setStatus("Cancelled");
-            seat.setStatus("Available");
-        }
-        seatRepository.save(seat);
-        bookingRepository.save(booking);
-
-        return buildResult("cinema", bookingId, seat.getPrice(), payment.getStatus(), booking.getStatus());
+        return payCinemaBookings(List.of(bookingId), userEmail, request);
     }
 
-    @Transactional
     public PaymentResult payConcertBooking(Long bookingId, String userEmail, PaymentRequest request) {
-        ConcertBooking booking = concertBookingRepository.findById(bookingId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Бронирование не найдено"));
+        return payConcertBookings(List.of(bookingId), userEmail, request);
+    }
+
+    public PaymentResult payMatchBooking(Long bookingId, String userEmail, PaymentRequest request) {
+        return payMatchBookings(List.of(bookingId), userEmail, request);
+    }
+
+    /**
+     * Оплата нескольких броней одной картой: либо все оплачены, либо (если банк отклонил) все отменены.
+     * В таблице payments у каждой брони своя строка с ценой её места.
+     */
+    @Transactional
+    public PaymentResult payCinemaBookings(List<Long> bookingIds, String userEmail, PaymentRequest request) {
+        List<Long> ids = checkBookingIds(bookingIds);
         User user = userService.getByEmail(userEmail);
-        checkCanPay(booking.getUser(), user, booking.getStatus(), booking.getBookingDate());
+        List<Booking> bookings = new ArrayList<>();
+        for (Long id : ids) {
+            Booking booking = bookingRepository.findById(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Бронирование не найдено"));
+            checkCanPay(booking.getUser(), user, booking.getStatus(), booking.getBookingDate());
+            bookings.add(booking);
+        }
 
-        String last4 = cardService.findLast4ForPayment(user, request);
-        boolean approved = isApproved(last4);
-        ConcertSeat seat = booking.getSeat();
+        boolean approved = isApproved(cardService.findLast4ForPayment(user, request));
+        String paymentStatus = approved ? "Paid" : "Failed";
+        BigDecimal total = BigDecimal.ZERO;
+        LocalDateTime now = LocalDateTime.now();
 
-        ConcertPayment payment = new ConcertPayment();
-        payment.setBooking(booking);
-        payment.setAmount(seat.getPrice());
-        payment.setPaymentDate(LocalDateTime.now());
-        payment.setStatus(approved ? "Paid" : "Failed");
-        concertPaymentRepository.save(payment);
+        for (Booking booking : bookings) {
+            Seat seat = booking.getSeat();
+            Payment payment = new Payment();
+            payment.setBooking(booking);
+            payment.setAmount(seat.getPrice());
+            payment.setPaymentDate(now);
+            payment.setStatus(paymentStatus);
+            paymentRepository.save(payment);
+            total = total.add(seat.getPrice());
+
+            booking.setStatus(approved ? "Confirmed" : "Cancelled");
+            seat.setStatus(approved ? "Booked" : "Available");
+            seatRepository.save(seat);
+            bookingRepository.save(booking);
+        }
 
         if (approved) {
-            booking.setStatus("Confirmed");
-            seat.setStatus("Booked");
             saveCardIfAsked(user, request);
-        } else {
-            booking.setStatus("Cancelled");
-            seat.setStatus("Available");
         }
-        concertSeatRepository.save(seat);
-        concertBookingRepository.save(booking);
-
-        return buildResult("concert", bookingId, seat.getPrice(), payment.getStatus(), booking.getStatus());
+        return buildResult("cinema", ids, total, paymentStatus);
     }
 
     @Transactional
-    public PaymentResult payMatchBooking(Long bookingId, String userEmail, PaymentRequest request) {
-        MatchBooking booking = matchBookingRepository.findById(bookingId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Бронирование не найдено"));
+    public PaymentResult payConcertBookings(List<Long> bookingIds, String userEmail, PaymentRequest request) {
+        List<Long> ids = checkBookingIds(bookingIds);
         User user = userService.getByEmail(userEmail);
-        checkCanPay(booking.getUser(), user, booking.getStatus(), booking.getBookingDate());
+        List<ConcertBooking> bookings = new ArrayList<>();
+        for (Long id : ids) {
+            ConcertBooking booking = concertBookingRepository.findById(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Бронирование не найдено"));
+            checkCanPay(booking.getUser(), user, booking.getStatus(), booking.getBookingDate());
+            bookings.add(booking);
+        }
 
-        String last4 = cardService.findLast4ForPayment(user, request);
-        boolean approved = isApproved(last4);
-        MatchSeat seat = booking.getSeat();
+        boolean approved = isApproved(cardService.findLast4ForPayment(user, request));
+        String paymentStatus = approved ? "Paid" : "Failed";
+        BigDecimal total = BigDecimal.ZERO;
+        LocalDateTime now = LocalDateTime.now();
 
-        MatchPayment payment = new MatchPayment();
-        payment.setBooking(booking);
-        payment.setAmount(seat.getPrice());
-        payment.setPaymentDate(LocalDateTime.now());
-        payment.setStatus(approved ? "Paid" : "Failed");
-        matchPaymentRepository.save(payment);
+        for (ConcertBooking booking : bookings) {
+            ConcertSeat seat = booking.getSeat();
+            ConcertPayment payment = new ConcertPayment();
+            payment.setBooking(booking);
+            payment.setAmount(seat.getPrice());
+            payment.setPaymentDate(now);
+            payment.setStatus(paymentStatus);
+            concertPaymentRepository.save(payment);
+            total = total.add(seat.getPrice());
+
+            booking.setStatus(approved ? "Confirmed" : "Cancelled");
+            seat.setStatus(approved ? "Booked" : "Available");
+            concertSeatRepository.save(seat);
+            concertBookingRepository.save(booking);
+        }
 
         if (approved) {
-            booking.setStatus("Confirmed");
-            seat.setStatus("Booked");
             saveCardIfAsked(user, request);
-        } else {
-            booking.setStatus("Cancelled");
-            seat.setStatus("Available");
         }
-        matchSeatRepository.save(seat);
-        matchBookingRepository.save(booking);
+        return buildResult("concert", ids, total, paymentStatus);
+    }
 
-        return buildResult("sport", bookingId, seat.getPrice(), payment.getStatus(), booking.getStatus());
+    @Transactional
+    public PaymentResult payMatchBookings(List<Long> bookingIds, String userEmail, PaymentRequest request) {
+        List<Long> ids = checkBookingIds(bookingIds);
+        User user = userService.getByEmail(userEmail);
+        List<MatchBooking> bookings = new ArrayList<>();
+        for (Long id : ids) {
+            MatchBooking booking = matchBookingRepository.findById(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Бронирование не найдено"));
+            checkCanPay(booking.getUser(), user, booking.getStatus(), booking.getBookingDate());
+            bookings.add(booking);
+        }
+
+        boolean approved = isApproved(cardService.findLast4ForPayment(user, request));
+        String paymentStatus = approved ? "Paid" : "Failed";
+        BigDecimal total = BigDecimal.ZERO;
+        LocalDateTime now = LocalDateTime.now();
+
+        for (MatchBooking booking : bookings) {
+            MatchSeat seat = booking.getSeat();
+            MatchPayment payment = new MatchPayment();
+            payment.setBooking(booking);
+            payment.setAmount(seat.getPrice());
+            payment.setPaymentDate(now);
+            payment.setStatus(paymentStatus);
+            matchPaymentRepository.save(payment);
+            total = total.add(seat.getPrice());
+
+            booking.setStatus(approved ? "Confirmed" : "Cancelled");
+            seat.setStatus(approved ? "Booked" : "Available");
+            matchSeatRepository.save(seat);
+            matchBookingRepository.save(booking);
+        }
+
+        if (approved) {
+            saveCardIfAsked(user, request);
+        }
+        return buildResult("sport", ids, total, paymentStatus);
+    }
+
+    private List<Long> checkBookingIds(List<Long> bookingIds) {
+        if (bookingIds == null || bookingIds.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Не выбраны брони для оплаты");
+        }
+        List<Long> ids = new ArrayList<>(new LinkedHashSet<>(bookingIds));
+        if (ids.size() > maxSeats) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "За один раз можно оплатить не больше " + maxSeats + " броней");
+        }
+        if (ids.contains(null)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Неверный номер брони");
+        }
+        return ids;
     }
 
     private void checkCanPay(User owner, User currentUser, String status, LocalDateTime bookingDate) {
@@ -173,12 +230,25 @@ public class PaymentService {
         }
     }
 
-    private PaymentResult buildResult(String type, Long bookingId, BigDecimal amount,
-                                      String paymentStatus, String bookingStatus) {
-        String message = paymentStatus.equals("Paid")
-                ? "Оплата прошла. Билет в личном кабинете."
-                : "Банк отклонил платёж. Бронь отменена, место снова свободно.";
-        String ticketNumber = paymentStatus.equals("Paid") ? TicketNumber.create(type, bookingId) : null;
-        return new PaymentResult(type, bookingId, amount, paymentStatus, bookingStatus, ticketNumber, message);
+    private PaymentResult buildResult(String type, List<Long> bookingIds, BigDecimal total, String paymentStatus) {
+        boolean paid = paymentStatus.equals("Paid");
+        String message;
+        if (paid) {
+            message = bookingIds.size() == 1
+                    ? "Оплата прошла. Билет в личном кабинете."
+                    : "Оплата прошла. Билеты (" + bookingIds.size() + ") в личном кабинете.";
+        } else {
+            message = bookingIds.size() == 1
+                    ? "Банк отклонил платёж. Бронь отменена, место снова свободно."
+                    : "Банк отклонил платёж. Брони отменены, места снова свободны.";
+        }
+        List<String> ticketNumbers = new ArrayList<>();
+        if (paid) {
+            for (Long id : bookingIds) {
+                ticketNumbers.add(TicketNumber.create(type, id));
+            }
+        }
+        return new PaymentResult(type, bookingIds.get(0), total, paymentStatus, paid ? "Confirmed" : "Cancelled",
+                paid ? ticketNumbers.get(0) : null, message, bookingIds, ticketNumbers);
     }
 }

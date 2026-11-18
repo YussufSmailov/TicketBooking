@@ -86,7 +86,7 @@ class AdminAccessTest {
 
     @Test
     void eventListsArePublic() throws Exception {
-        when(cinemaService.getAllMovies()).thenReturn(List.of());
+        when(cinemaService.searchMovies(any())).thenReturn(List.of());
 
         mockMvc.perform(get("/api/cinema/movies")).andExpect(status().isOk());
         mockMvc.perform(get("/api/concert/concerts")).andExpect(status().isOk());

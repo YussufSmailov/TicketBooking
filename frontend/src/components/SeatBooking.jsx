@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import BookingForm from "./BookingForm";
 import CinemaHall from "./CinemaHall";
@@ -8,28 +8,65 @@ import StatusMessage from "./StatusMessage";
 import { useAuth } from "../AuthContext";
 import { useData } from "../useData";
 import { getSeats } from "../api";
+import { isFree } from "../seats";
+import { plural } from "../format";
+
+export const MAX_SEATS = 6;
 
 function SeatBooking({ category, eventId }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [selectedSeat, setSelectedSeat] = useState(null);
+  const [selectedSeats, setSelectedSeats] = useState([]);
   const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [limitMessage, setLimitMessage] = useState("");
+  const [inCheckout, setInCheckout] = useState(false);
   const seats = useData(() => getSeats(category, eventId), [category, eventId]);
 
-  const [errorMessage, setErrorMessage] = useState("");
+  // После обновления схемы убираем из выбора места, которые за это время занял кто-то другой.
+  // Пока открыта оплата, свои места уже Reserved — их не трогаем.
+  useEffect(() => {
+    if (!seats.data || inCheckout) {
+      return;
+    }
+    setSelectedSeats((current) => current.filter((picked) => {
+      const fresh = seats.data.find((seat) => seat.id === picked.id);
+      return fresh && isFree(fresh);
+    }));
+  }, [seats.data, inCheckout]);
 
-  function handleFinished(result, seat) {
-    setSelectedSeat(null);
+  function toggleSeat(seat) {
+    setSuccessMessage("");
+    setErrorMessage("");
+    // Функциональное обновление: несколько быстрых нажатий подряд не затирают друг друга.
+    setSelectedSeats((current) => {
+      if (current.some((picked) => picked.id === seat.id)) {
+        setLimitMessage("");
+        return current.filter((picked) => picked.id !== seat.id);
+      }
+      if (current.length >= MAX_SEATS) {
+        setLimitMessage(`В один заказ можно добавить не больше ${MAX_SEATS} мест.`);
+        return current;
+      }
+      setLimitMessage("");
+      return [...current, seat];
+    });
+  }
+
+  function handleFinished(result, seatCount) {
+    setSelectedSeats([]);
+    setInCheckout(false);
     seats.reload();
     if (result === null) {
       setSuccessMessage("");
-      setErrorMessage("Оплата не завершена. Место держится за вами 10 минут — оплатить можно в личном кабинете.");
+      setErrorMessage(`Оплата не завершена. ${seatCount === 1 ? "Место держится" : "Места держатся"} за вами 10 минут — оплатить можно в личном кабинете.`);
       return;
     }
     if (result.paymentStatus === "Paid") {
       setErrorMessage("");
-      setSuccessMessage(`Оплачено! Электронный билет № ${result.ticketNumber}: ${seat.label}. Он в личном кабинете.`);
+      const numbers = result.ticketNumbers.join(", ");
+      setSuccessMessage(`Оплачено! ${result.ticketNumbers.length} ${plural(result.ticketNumbers.length, ["билет", "билета", "билетов"])}: № ${numbers}. Они в личном кабинете.`);
     } else {
       setSuccessMessage("");
       setErrorMessage(result.message);
@@ -56,14 +93,18 @@ function SeatBooking({ category, eventId }) {
     <>
       {successMessage && <p className="success" role="status">{successMessage}</p>}
       {errorMessage && <p className="error-box" role="alert">{errorMessage}</p>}
-      {category === "cinema" && <CinemaHall seats={seatList} selectedSeat={selectedSeat} onSelect={setSelectedSeat} />}
-      {category === "sport" && <StadiumMap seats={seatList} selectedSeat={selectedSeat} onSelect={setSelectedSeat} />}
-      {category === "concert" && <ConcertHall seats={seatList} selectedSeat={selectedSeat} onSelect={setSelectedSeat} />}
-      {selectedSeat && (
+      <p className="muted small">Нажмите на места, чтобы выбрать их — можно до {MAX_SEATS} мест в одном заказе. Повторное нажатие снимает выбор.</p>
+      {category === "cinema" && <CinemaHall seats={seatList} selectedSeats={selectedSeats} onToggle={toggleSeat} />}
+      {category === "sport" && <StadiumMap seats={seatList} selectedSeats={selectedSeats} onToggle={toggleSeat} />}
+      {category === "concert" && <ConcertHall seats={seatList} selectedSeats={selectedSeats} onToggle={toggleSeat} />}
+      {limitMessage && <p className="error" role="alert">{limitMessage}</p>}
+      {selectedSeats.length > 0 && (
         <BookingForm
           category={category}
-          seat={selectedSeat}
+          seats={selectedSeats}
           user={user}
+          onRemove={toggleSeat}
+          onCheckout={setInCheckout}
           onFinished={handleFinished}
           onNeedLogin={goToLogin}
           onSeatsChanged={seats.reload}

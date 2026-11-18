@@ -29,6 +29,21 @@ function MyTickets() {
 
   const tickets = data || [];
 
+  // Неоплаченные места одного события (обычно это один заказ) оплачиваются вместе.
+  function pendingGroup(ticket) {
+    return tickets.filter((item) => item.status === "Pending" && item.type === ticket.type && item.eventId === ticket.eventId);
+  }
+
+  function startPayment(ticket) {
+    const group = pendingGroup(ticket);
+    setPayingTicket({
+      type: ticket.type,
+      bookingIds: group.map((item) => item.bookingId),
+      lines: group.map((item) => `${item.eventTitle}, ${seatLabel(item.zone, item.seatNumber)}`),
+      total: group.reduce((sum, item) => sum + Number(item.price), 0)
+    });
+  }
+
   async function handleCancel(ticket) {
     if (!window.confirm(`Отменить бронь «${ticket.eventTitle}»?`)) {
       return;
@@ -84,7 +99,9 @@ function MyTickets() {
               )}
               <div className="admin-buttons">
                 {ticket.status === "Pending" && (
-                  <button className="primary-button" onClick={() => setPayingTicket(ticket)}>Оплатить</button>
+                  <button className="primary-button" onClick={() => startPayment(ticket)}>
+                    {pendingGroup(ticket).length > 1 ? `Оплатить все (${pendingGroup(ticket).length})` : "Оплатить"}
+                  </button>
                 )}
                 {ticket.status !== "Cancelled" && (
                   <button className="danger-button" onClick={() => handleCancel(ticket)}>Отменить</button>
@@ -97,8 +114,9 @@ function MyTickets() {
       {payingTicket && (
         <PaymentModal
           type={payingTicket.type}
-          booking={{ bookingId: payingTicket.bookingId }}
-          seat={{ label: `${payingTicket.eventTitle}, ${seatLabel(payingTicket.zone, payingTicket.seatNumber)}`, price: payingTicket.price }}
+          bookingIds={payingTicket.bookingIds}
+          lines={payingTicket.lines}
+          total={payingTicket.total}
           onFinished={handlePaid}
           onClose={() => setPayingTicket(null)}
         />

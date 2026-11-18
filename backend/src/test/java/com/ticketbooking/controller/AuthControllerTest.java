@@ -2,6 +2,7 @@ package com.ticketbooking.controller;
 
 import com.ticketbooking.dto.AuthResponse;
 import com.ticketbooking.dto.UserResponse;
+import com.ticketbooking.exception.EmailNotVerifiedException;
 import com.ticketbooking.security.JwtService;
 import com.ticketbooking.security.SecurityConfig;
 import com.ticketbooking.service.AuthService;
@@ -87,5 +88,24 @@ class AuthControllerTest {
         mockMvc.perform(get("/api/me"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("dana@gmail.com"));
+    }
+
+    @Test
+    void loginBeforeVerificationReturns403WithErrorCode() throws Exception {
+        when(authService.login(any())).thenThrow(new EmailNotVerifiedException("dana@gmail.com"));
+
+        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\": \"dana@gmail.com\", \"password\": \"Secret123\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("EMAIL_NOT_VERIFIED"))
+                .andExpect(jsonPath("$.email").value("dana@gmail.com"));
+    }
+
+    @Test
+    void verifyWithBadCodeFormatReturns400() throws Exception {
+        mockMvc.perform(post("/api/auth/verify").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\": \"dana@gmail.com\", \"code\": \"12ab\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.code").exists());
     }
 }

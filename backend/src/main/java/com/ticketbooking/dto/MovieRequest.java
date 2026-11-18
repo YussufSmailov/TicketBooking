@@ -34,7 +34,7 @@ public record MovieRequest(
         String description,
 
         @Size(max = 300, message = "Ссылка не длиннее 300 символов")
-        @Pattern(regexp = "^(https?://\\S+)?$", message = "Ссылка на постер должна начинаться с http:// или https://")
+        @Pattern(regexp = ValidationRules.POSTER_URL, message = ValidationRules.POSTER_URL_MESSAGE)
         String posterUrl
 ) {
 }

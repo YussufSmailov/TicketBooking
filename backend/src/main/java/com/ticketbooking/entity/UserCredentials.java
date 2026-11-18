@@ -22,4 +22,5 @@ public class UserCredentials {
 
     private String passwordHash;
     private String role;
+    private boolean emailVerified;
 }

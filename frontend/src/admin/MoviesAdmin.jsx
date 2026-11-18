@@ -151,7 +151,7 @@ function MoviesAdmin() {
         </label>
         <label>
           Ссылка на постер
-          <input type="url" value={movieForm.posterUrl} maxLength={300} placeholder="https://picsum.photos/seed/name/400/600" onChange={(e) => changeMovieField("posterUrl", e.target.value)} />
+          <input type="text" value={movieForm.posterUrl} maxLength={300} pattern="(https?://|/)\S+" title="http://, https:// или путь вида /images/..." placeholder="/images/movies/poster.jpg или https://..." onChange={(e) => changeMovieField("posterUrl", e.target.value)} />
           <FieldError message={movieErrors.posterUrl} />
         </label>
         <label className="admin-wide">

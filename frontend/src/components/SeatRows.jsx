@@ -1,7 +1,8 @@
 import { groupSeatsByRow, isAisleAfter, isFree } from "../seats";
 import { formatPrice } from "../format";
 
-function SeatRows({ seats, selectedSeat, onSelect, withAisles }) {
+function SeatRows({ seats, selectedSeats, onToggle, withAisles }) {
+  const selectedIds = new Set(selectedSeats.map((seat) => seat.id));
   const rows = groupSeatsByRow(seats);
 
   return (
@@ -17,9 +18,9 @@ function SeatRows({ seats, selectedSeat, onSelect, withAisles }) {
           }
 
           const free = isFree(seat);
-          const selected = selectedSeat !== null && selectedSeat.id === seat.id;
+          const selected = selectedIds.has(seat.id);
           let className = "seat-square";
-          if (!free) className = "seat-square seat-square-taken";
+          if (!free && !selected) className = "seat-square seat-square-taken";
           if (selected) className = "seat-square seat-square-selected";
 
           items.push(
@@ -27,13 +28,13 @@ function SeatRows({ seats, selectedSeat, onSelect, withAisles }) {
               key={seat.id}
               type="button"
               className={className}
-              disabled={!free}
+              disabled={!free && !selected}
               aria-pressed={selected}
-              aria-label={free ? `${seat.label}, ${formatPrice(seat.price)}` : `${seat.label}, занято`}
-              title={free ? `${seat.label}, ${formatPrice(seat.price)}` : "Место занято"}
-              onClick={() => onSelect(seat)}
+              aria-label={free || selected ? `${seat.label}, ${formatPrice(seat.price)}` : `${seat.label}, занято`}
+              title={free || selected ? `${seat.label}, ${formatPrice(seat.price)}` : "Место занято"}
+              onClick={() => onToggle(seat)}
             >
-              {free ? seat.number : ""}
+              {free || selected ? seat.number : ""}
             </button>
           );
         });

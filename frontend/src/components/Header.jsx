@@ -1,6 +1,7 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import ThemeToggle from "./ThemeToggle";
+import HeaderSearch from "./HeaderSearch";
 
 function Header() {
   const { user, isAdmin, logOut } = useAuth();
@@ -15,6 +16,7 @@ function Header() {
     <header className="header">
       <div className="header-top">
         <Link to="/" className="logo">Билеты</Link>
+        <HeaderSearch />
         <nav className="header-nav" aria-label="Аккаунт">
           {user ? (
             <>

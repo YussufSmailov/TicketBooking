@@ -5,7 +5,7 @@ import ZoneTooltip from "./ZoneTooltip";
 import { priceColor, summarizeZones } from "../seats";
 import { formatPrice } from "../format";
 
-function ZoneMap({ viewBox, shapes, background, foreground, seats, selectedSeat, onSelect, zoneWord }) {
+function ZoneMap({ viewBox, shapes, background, foreground, seats, selectedSeats, onToggle, zoneWord }) {
   const [openZone, setOpenZone] = useState(null);
   const [hoveredZone, setHoveredZone] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
@@ -22,6 +22,10 @@ function ZoneMap({ viewBox, shapes, background, foreground, seats, selectedSeat,
   const prices = zones.map((zone) => zone.minPrice);
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
+
+  function selectedInZone(name) {
+    return selectedSeats.filter((seat) => seat.zone === name).length;
+  }
 
   function findZone(name) {
     return zones.find((zone) => zone.name === name);
@@ -49,7 +53,7 @@ function ZoneMap({ viewBox, shapes, background, foreground, seats, selectedSeat,
         </div>
         <p className="scheme-hint">Схему можно листать вбок →</p>
         <div className="scheme-scroll" ref={scrollRef}>
-          <SeatRows seats={zoneSeats} selectedSeat={selectedSeat} onSelect={onSelect} withAisles={false} />
+          <SeatRows seats={zoneSeats} selectedSeats={selectedSeats} onToggle={onToggle} withAisles={false} />
         </div>
         <SeatLegend />
       </div>
@@ -120,6 +124,7 @@ function ZoneMap({ viewBox, shapes, background, foreground, seats, selectedSeat,
               <b>{zone.name}</b>
               <span>от {formatPrice(zone.minPrice)}</span>
               <span className="muted">{zone.freeCount > 0 ? `свободно ${zone.freeCount}` : "мест нет"}</span>
+              {selectedInZone(zone.name) > 0 && <span className="zone-picked">выбрано {selectedInZone(zone.name)}</span>}
             </button>
           </li>
         ))}

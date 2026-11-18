@@ -20,6 +20,22 @@ public class PaymentController {
         this.paymentService = paymentService;
     }
 
+    @PostMapping("/{type}")
+    public PaymentResult payMany(@PathVariable String type,
+                                 @Valid @RequestBody PaymentRequest request,
+                                 Principal principal) {
+        if (type.equals("cinema")) {
+            return paymentService.payCinemaBookings(request.bookingIds(), principal.getName(), request);
+        }
+        if (type.equals("concert")) {
+            return paymentService.payConcertBookings(request.bookingIds(), principal.getName(), request);
+        }
+        if (type.equals("sport")) {
+            return paymentService.payMatchBookings(request.bookingIds(), principal.getName(), request);
+        }
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Неизвестный тип брони");
+    }
+
     @PostMapping("/{type}/{bookingId}")
     public PaymentResult pay(@PathVariable String type,
                              @PathVariable Long bookingId,

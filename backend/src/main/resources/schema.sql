@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS reviews CASCADE;
+DROP TABLE IF EXISTS email_verifications CASCADE;
 DROP TABLE IF EXISTS payment_cards CASCADE;
 DROP TABLE IF EXISTS concert_payments CASCADE;
 DROP TABLE IF EXISTS match_payments CASCADE;
@@ -27,7 +29,16 @@ CREATE TABLE users (
 CREATE TABLE user_credentials (
     user_id INT PRIMARY KEY REFERENCES users (user_id) ON DELETE CASCADE,
     password_hash VARCHAR(100) NOT NULL,
-    role VARCHAR(20) NOT NULL DEFAULT 'CUSTOMER' CHECK (role IN ('CUSTOMER', 'ADMIN'))
+    role VARCHAR(20) NOT NULL DEFAULT 'CUSTOMER' CHECK (role IN ('CUSTOMER', 'ADMIN')),
+    email_verified BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE TABLE email_verifications (
+    user_id INT PRIMARY KEY REFERENCES users (user_id) ON DELETE CASCADE,
+    code_hash VARCHAR(100) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    sent_at TIMESTAMP NOT NULL,
+    attempts INT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE movies (
@@ -89,6 +100,8 @@ CREATE TABLE concerts (
     city VARCHAR(50) NOT NULL,
     concert_date DATE NOT NULL,
     concert_time TIME NOT NULL,
+    duration_min INT CHECK (duration_min > 0),
+    genre VARCHAR(50),
     description TEXT,
     poster_url VARCHAR(300)
 );
@@ -125,7 +138,8 @@ CREATE TABLE teams (
     team_id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE,
     city VARCHAR(50) NOT NULL,
-    stadium VARCHAR(100) NOT NULL
+    stadium VARCHAR(100) NOT NULL,
+    logo_url VARCHAR(300)
 );
 
 CREATE TABLE matches (
@@ -179,3 +193,17 @@ CREATE TABLE payment_cards (
     exp_year INT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE reviews (
+    review_id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+    event_type VARCHAR(10) NOT NULL CHECK (event_type IN ('movie', 'concert', 'match')),
+    event_id INT NOT NULL,
+    rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment VARCHAR(1000),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id, event_type, event_id)
+);
+
+CREATE INDEX reviews_by_event ON reviews (event_type, event_id);

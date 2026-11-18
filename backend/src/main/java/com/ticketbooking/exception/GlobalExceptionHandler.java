@@ -4,6 +4,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -23,6 +24,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(e.getStatusCode()).body(Map.of("message", message));
     }
 
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<Map<String, Object>> handleNotVerified(EmailNotVerifiedException e) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("message", e.getMessage());
+        body.put("error", "EMAIL_NOT_VERIFIED");
+        body.put("email", e.getEmail());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException e) {
         Map<String, String> fieldErrors = new LinkedHashMap<>();
@@ -34,6 +44,12 @@ public class GlobalExceptionHandler {
         body.put("message", "Проверьте правильность заполнения полей");
         body.put("errors", fieldErrors);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    @ExceptionHandler(BindException.class)
+    public ResponseEntity<Map<String, Object>> handleBadFilter(BindException e) {
+        String field = e.getFieldError() != null ? e.getFieldError().getField() : "запроса";
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Неверный параметр: " + field));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

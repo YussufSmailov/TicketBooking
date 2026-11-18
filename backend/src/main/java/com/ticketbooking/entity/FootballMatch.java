@@ -1,6 +1,7 @@
 package com.ticketbooking.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.Formula;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -33,4 +34,10 @@ public class FootballMatch {
     private LocalTime matchTime;
     private String description;
     private String posterUrl;
+
+    @Formula("(SELECT ROUND(AVG(r.rating), 1) FROM reviews r WHERE r.event_type = 'match' AND r.event_id = match_id)")
+    private Double rating;
+
+    @Formula("(SELECT COUNT(*) FROM reviews r WHERE r.event_type = 'match' AND r.event_id = match_id)")
+    private Integer reviewCount;
 }

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import CardFields from "./CardFields";
 import Countdown from "./Countdown";
-import { getMyCards, payBooking } from "../api";
+import { getMyCards, payBookings } from "../api";
 import { cardForServer, checkCard, emptyCard } from "../cards";
-import { formatPrice } from "../format";
+import { formatPrice, plural } from "../format";
 
 function serverFieldErrors(fieldErrors) {
   const result = {};
@@ -13,7 +13,7 @@ function serverFieldErrors(fieldErrors) {
   return result;
 }
 
-function PaymentModal({ type, booking, seat, onFinished, onClose }) {
+function PaymentModal({ type, bookingIds, lines, total, onFinished, onClose }) {
   const [cards, setCards] = useState([]);
   const [selectedCardId, setSelectedCardId] = useState("new");
   const [card, setCard] = useState(emptyCard());
@@ -67,7 +67,7 @@ function PaymentModal({ type, booking, seat, onFinished, onClose }) {
 
     setPaying(true);
     try {
-      const result = await payBooking(type, booking.bookingId, payment);
+      const result = await payBookings(type, bookingIds, payment);
       onFinished(result);
     } catch (e) {
       setError(e.message);
@@ -88,19 +88,21 @@ function PaymentModal({ type, booking, seat, onFinished, onClose }) {
         ref={dialogRef}
       >
         <div className="modal-header">
-          <h3 id="payment-title">Оплата билета</h3>
+          <h3 id="payment-title">{lines.length === 1 ? "Оплата билета" : `Оплата ${lines.length} ${plural(lines.length, ["билета", "билетов", "билетов"])}`}</h3>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Закрыть">×</button>
         </div>
 
-        <p>{seat.label}</p>
-        <p className="modal-price">{formatPrice(seat.price)}</p>
+        <ul className="modal-lines">
+          {lines.map((line) => <li key={line}>{line}</li>)}
+        </ul>
+        <p className="modal-price">{formatPrice(total)}</p>
         <p className="muted small">
-          Место закреплено за вами ещё{" "}
+          {lines.length === 1 ? "Место закреплено" : "Места закреплены"} за вами ещё{" "}
           <Countdown seconds={10 * 60} onFinish={() => setTimeIsOver(true)} />. Потом бронь отменится.
         </p>
 
         {timeIsOver ? (
-          <p className="error">Время на оплату вышло. Выберите место заново.</p>
+          <p className="error">Время на оплату вышло. Выберите места заново.</p>
         ) : (
           <form onSubmit={handlePay} className="payment-form">
             <fieldset className="card-choice">
@@ -142,7 +144,7 @@ function PaymentModal({ type, booking, seat, onFinished, onClose }) {
 
             {error && <p className="error">{error}</p>}
             <button className="primary-button" type="submit" disabled={paying}>
-              {paying ? "Оплачиваем..." : `Оплатить ${formatPrice(seat.price)}`}
+              {paying ? "Оплачиваем..." : `Оплатить ${formatPrice(total)}`}
             </button>
             <p className="muted small">Это учебный проект: деньги не списываются, номер карты и CVV не сохраняются.</p>
           </form>

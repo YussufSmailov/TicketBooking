@@ -13,6 +13,8 @@ const emptyConcert = {
   city: "Almaty",
   concertDate: "",
   concertTime: "",
+  durationMin: "",
+  genre: "",
   posterUrl: "",
   description: ""
 };
@@ -40,7 +42,7 @@ function ConcertsAdmin() {
     setError("");
     setFieldErrors({});
     try {
-      await saveConcert(editingId, form);
+      await saveConcert(editingId, { ...form, durationMin: form.durationMin === "" ? null : Number(form.durationMin) });
       setForm(emptyConcert);
       setEditingId(null);
       loadConcerts();
@@ -59,6 +61,8 @@ function ConcertsAdmin() {
       city: concert.city,
       concertDate: concert.concertDate,
       concertTime: concert.concertTime.slice(0, 5),
+      durationMin: concert.durationMin ? String(concert.durationMin) : "",
+      genre: concert.genre || "",
       posterUrl: concert.posterUrl || "",
       description: concert.description || ""
     });
@@ -111,8 +115,18 @@ function ConcertsAdmin() {
           <FieldError message={fieldErrors.concertTime} />
         </label>
         <label>
+          Длительность, мин
+          <input type="number" min={1} max={600} value={form.durationMin} onChange={(e) => changeField("durationMin", e.target.value)} />
+          <FieldError message={fieldErrors.durationMin} />
+        </label>
+        <label>
+          Жанр
+          <input value={form.genre} maxLength={50} placeholder="Поп, Хип-хоп, Эстрада..." onChange={(e) => changeField("genre", e.target.value)} />
+          <FieldError message={fieldErrors.genre} />
+        </label>
+        <label>
           Ссылка на постер
-          <input type="url" value={form.posterUrl} maxLength={300} placeholder="https://picsum.photos/seed/name/400/600" onChange={(e) => changeField("posterUrl", e.target.value)} />
+          <input type="text" value={form.posterUrl} maxLength={300} pattern="(https?://|/)\S+" title="http://, https:// или путь вида /images/..." placeholder="/images/movies/poster.jpg или https://..." onChange={(e) => changeField("posterUrl", e.target.value)} />
           <FieldError message={fieldErrors.posterUrl} />
         </label>
         <label className="admin-wide">

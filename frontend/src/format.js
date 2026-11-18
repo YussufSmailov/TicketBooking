@@ -21,3 +21,25 @@ export function formatTime(timeText) {
 export function formatPrice(price) {
   return `${Number(price).toLocaleString("ru-RU")} ₸`;
 }
+
+// plural(3, ["билет", "билета", "билетов"]) → "билета"
+export function plural(count, forms) {
+  const n = Math.abs(count) % 100;
+  const last = n % 10;
+  if (n > 10 && n < 20) return forms[2];
+  if (last > 1 && last < 5) return forms[1];
+  if (last === 1) return forms[0];
+  return forms[2];
+}
+
+export function formatRating(rating) {
+  return Number(rating).toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
+export function formatDuration(minutes) {
+  if (!minutes) return "";
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours === 0) return `${rest} мин`;
+  return rest === 0 ? `${hours} ч` : `${hours} ч ${rest} мин`;
+}

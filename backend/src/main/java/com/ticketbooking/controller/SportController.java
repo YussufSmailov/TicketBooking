@@ -1,6 +1,7 @@
 package com.ticketbooking.controller;
 
 import com.ticketbooking.dto.BookingRequest;
+import com.ticketbooking.dto.MatchFilter;
 import com.ticketbooking.dto.MatchRequest;
 import com.ticketbooking.dto.ZoneSeatRowRequest;
 import com.ticketbooking.entity.FootballMatch;
@@ -31,8 +32,8 @@ public class SportController {
     }
 
     @GetMapping("/matches")
-    public List<FootballMatch> getAllMatches() {
-        return sportService.getAllMatches();
+    public List<FootballMatch> getMatches(@ModelAttribute MatchFilter filter) {
+        return sportService.searchMatches(filter);
     }
 
     @GetMapping("/matches/{id}")
@@ -75,8 +76,8 @@ public class SportController {
 
     @PostMapping("/bookings")
     @ResponseStatus(HttpStatus.CREATED)
-    public MatchBooking createBooking(@Valid @RequestBody BookingRequest request, Principal principal) {
-        return sportService.createBooking(request.seatId(), principal.getName());
+    public List<MatchBooking> createBooking(@RequestBody BookingRequest request, Principal principal) {
+        return sportService.createBookings(request.allSeatIds(), principal.getName());
     }
 
     @PutMapping("/bookings/{id}/cancel")

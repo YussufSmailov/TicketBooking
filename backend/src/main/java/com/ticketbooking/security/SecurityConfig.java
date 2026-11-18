@@ -26,6 +26,8 @@ public class SecurityConfig {
 
     private static final String[] PUBLIC_GET_URLS = {
             "/api/home",
+            "/api/search",
+            "/api/reviews/**",
             "/api/cinema/movies/**",
             "/api/cinema/sessions/**",
             "/api/concert/concerts/**",

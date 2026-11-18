@@ -27,13 +27,14 @@ function HomePage() {
   return (
     <>
       {heroCard ? (
-        <section className="hero hero-banner" style={{ backgroundImage: `linear-gradient(90deg, rgba(8, 10, 16, 0.85), rgba(8, 10, 16, 0.25)), url(https://picsum.photos/seed/hero-${heroCard.id}/1200/500)` }}>
+        <section className="hero hero-banner" style={{ "--hero-image": heroCard.posterUrl ? `url("${heroCard.posterUrl}")` : "none" }}>
           <div className="hero-content">
             <span className="hero-badge">Премьера</span>
             <h2>{heroCard.title}</h2>
             <p>{heroCard.subtitle} · ближайший сеанс {formatDate(heroCard.date)}</p>
             <Link className="primary-button" to={cardLink(heroCard)}>Купить билет</Link>
           </div>
+          {heroCard.posterUrl && <img className="hero-poster" src={heroCard.posterUrl} alt="" />}
         </section>
       ) : (
         <section className="hero">
