@@ -4,10 +4,6 @@ import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
 
-/**
- * Параметры GET /api/sport/matches. Все поля необязательные.
- * sort: date (по умолчанию), rating.
- */
 public record MatchFilter(
         String q,
         Long teamId,

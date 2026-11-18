@@ -22,7 +22,6 @@ export function formatPrice(price) {
   return `${Number(price).toLocaleString("ru-RU")} ₸`;
 }
 
-// plural(3, ["билет", "билета", "билетов"]) → "билета"
 export function plural(count, forms) {
   const n = Math.abs(count) % 100;
   const last = n % 10;

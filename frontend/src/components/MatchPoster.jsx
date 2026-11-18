@@ -8,7 +8,6 @@ function Crest({ url, name }) {
   return <img className="crest" src={url} alt="" loading="lazy" onError={() => setFailed(true)} />;
 }
 
-// Постер матча: эмблемы обеих команд на фоне фото стадиона хозяев.
 function MatchPoster({ homeName, awayName, homeLogoUrl, awayLogoUrl, backgroundUrl, className }) {
   const style = backgroundUrl ? { backgroundImage: `url("${backgroundUrl}")` } : undefined;
   return (

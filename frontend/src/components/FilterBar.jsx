@@ -1,7 +1,6 @@
 import { useDebouncedText } from "../useFilters";
 import { plural } from "../format";
 
-// fields: [{ name, label, options: [{ value, label }] } | { name, label, type: "date", min }]
 function FilterBar({ filters, setFilter, reset, active, searchPlaceholder, fields, count, loading }) {
   const [text, setText] = useDebouncedText(filters.q, (value) => setFilter("q", value));
 

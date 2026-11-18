@@ -31,9 +31,6 @@ abstract class IntegrationTestSupport {
     @Autowired
     protected ObjectMapper objectMapper;
 
-    /**
-     * Настоящие письма в тестах не отправляются: перехватываем код, который ушёл бы на почту.
-     */
     @MockBean
     protected EmailService emailService;
 
@@ -67,9 +64,6 @@ abstract class IntegrationTestSupport {
         return readJson(result).get("token").asText();
     }
 
-    /**
-     * Регистрация → код из «письма» → подтверждение. Возвращает JWT.
-     */
     protected String registerAndLogin(String fullName) throws Exception {
         String email = newEmail();
         register(fullName, email);

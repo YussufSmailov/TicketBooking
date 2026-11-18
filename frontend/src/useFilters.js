@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
-// Фильтры списка хранятся в адресной строке (?genre=...&sort=...), поэтому ссылкой можно поделиться,
-// а кнопка «назад» возвращает прошлые фильтры.
 export function useFilters(names) {
   const [params, setParams] = useSearchParams();
   const filters = {};
@@ -28,7 +26,6 @@ export function useFilters(names) {
   return { filters, setFilter, reset, active, key: params.toString() };
 }
 
-// Текст поиска обновляет адрес не на каждую букву, а через 300 мс после последнего нажатия.
 export function useDebouncedText(value, onCommit) {
   const [text, setText] = useState(value);
 

@@ -7,9 +7,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * Общие проверки заказа на несколько мест для кино, концертов и матчей.
- */
 public final class SeatSelection {
 
     private SeatSelection() {

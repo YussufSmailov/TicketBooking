@@ -4,10 +4,6 @@ import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
 
-/**
- * Параметры GET /api/concert/concerts. Все поля необязательные.
- * sort: date (по умолчанию), rating, duration, durationDesc.
- */
 public record ConcertFilter(
         String q,
         String city,

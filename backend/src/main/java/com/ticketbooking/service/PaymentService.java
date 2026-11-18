@@ -77,10 +77,6 @@ public class PaymentService {
         return payMatchBookings(List.of(bookingId), userEmail, request);
     }
 
-    /**
-     * Оплата нескольких броней одной картой: либо все оплачены, либо (если банк отклонил) все отменены.
-     * В таблице payments у каждой брони своя строка с ценой её места.
-     */
     @Transactional
     public PaymentResult payCinemaBookings(List<Long> bookingIds, String userEmail, PaymentRequest request) {
         List<Long> ids = checkBookingIds(bookingIds);

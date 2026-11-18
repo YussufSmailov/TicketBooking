@@ -71,9 +71,6 @@ public class ReviewService {
         return new ReviewSummary(eventType, eventId, average, reviews.size(), distribution, responses);
     }
 
-    /**
-     * Один пользователь — один отзыв на событие. Повторная отправка обновляет его отзыв.
-     */
     @Transactional
     public ReviewResponse saveReview(String eventType, Long eventId, String userEmail, ReviewRequest request) {
         checkEventExists(eventType, eventId);
@@ -127,9 +124,6 @@ public class ReviewService {
                 review.getComment(), review.getCreatedAt(), review.getUpdatedAt(), mine);
     }
 
-    /**
-     * «Amina Seitkali» → «Amina S.» — в публичных отзывах не показываем полную фамилию.
-     */
     static String shortName(String fullName) {
         String[] parts = fullName.trim().split("\\s+");
         if (parts.length < 2) {

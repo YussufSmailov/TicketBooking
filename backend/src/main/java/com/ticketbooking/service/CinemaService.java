@@ -214,9 +214,6 @@ public class CinemaService {
         return createBookings(List.of(seatId), userEmail).get(0);
     }
 
-    /**
-     * Бронирует сразу несколько мест одного сеанса. Если хоть одно место занято, не бронируется ни одно.
-     */
     @Transactional
     public List<Booking> createBookings(List<Long> seatIds, String userEmail) {
         SeatSelection.check(seatIds, maxSeats);

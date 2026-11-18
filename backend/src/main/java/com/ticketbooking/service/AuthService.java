@@ -63,11 +63,6 @@ public class AuthService {
         this.emailService = emailService;
     }
 
-    /**
-     * Создаёт неподтверждённый аккаунт и отправляет код на email.
-     * Если аккаунт с этим email уже есть, но ещё не подтверждён, данные обновляются и код отправляется заново:
-     * так человек, потерявший письмо, может просто зарегистрироваться ещё раз.
-     */
     @Transactional
     public VerificationSentResponse register(RegisterRequest request) {
         String email = normalize(request.email());

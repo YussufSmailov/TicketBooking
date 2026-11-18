@@ -4,9 +4,6 @@ import jakarta.validation.Valid;
 
 import java.util.List;
 
-/**
- * bookingIds нужен только для POST /api/payments/{type} (оплата сразу нескольких броней одной картой).
- */
 public record PaymentRequest(
         Long cardId,
 

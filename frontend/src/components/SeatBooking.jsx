@@ -24,8 +24,6 @@ function SeatBooking({ category, eventId }) {
   const [inCheckout, setInCheckout] = useState(false);
   const seats = useData(() => getSeats(category, eventId), [category, eventId]);
 
-  // После обновления схемы убираем из выбора места, которые за это время занял кто-то другой.
-  // Пока открыта оплата, свои места уже Reserved — их не трогаем.
   useEffect(() => {
     if (!seats.data || inCheckout) {
       return;
@@ -39,7 +37,6 @@ function SeatBooking({ category, eventId }) {
   function toggleSeat(seat) {
     setSuccessMessage("");
     setErrorMessage("");
-    // Функциональное обновление: несколько быстрых нажатий подряд не затирают друг друга.
     setSelectedSeats((current) => {
       if (current.some((picked) => picked.id === seat.id)) {
         setLimitMessage("");

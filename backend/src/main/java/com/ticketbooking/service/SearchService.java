@@ -15,9 +15,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Поиск по всему сайту: фильмы, концерты и матчи одним списком.
- */
 @Service
 public class SearchService {
 

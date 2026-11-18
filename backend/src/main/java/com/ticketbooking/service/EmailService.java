@@ -25,8 +25,6 @@ public class EmailService {
     private final String fromName;
     private final long codeMinutes;
 
-    // Имя отправителя задаётся здесь, а не в .properties: Spring читает .properties как ISO-8859-1,
-    // и русские буквы оттуда превращаются в кракозябры.
     public EmailService(ObjectProvider<JavaMailSender> mailSender,
                         @Value("${app.mail.from}") String from,
                         @Value("${app.mail.from-name:Билеты}") String fromName,

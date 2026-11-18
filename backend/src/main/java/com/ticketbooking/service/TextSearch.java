@@ -2,10 +2,6 @@ package com.ticketbooking.service;
 
 import java.util.Locale;
 
-/**
- * Простой поиск по тексту: без учёта регистра, «ё» = «е», каждое слово запроса должно встретиться
- * хотя бы в одном из полей. «кайрат астана» найдёт матч «Кайрат — Астана».
- */
 public final class TextSearch {
 
     private TextSearch() {

@@ -3,9 +3,6 @@ package com.ticketbooking.dto;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Можно передать одно место {"seatId": 5} или несколько {"seatIds": [5, 6, 7]}.
- */
 public record BookingRequest(
         Long seatId,
         List<Long> seatIds

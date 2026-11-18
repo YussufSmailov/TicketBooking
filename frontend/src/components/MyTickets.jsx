@@ -29,7 +29,6 @@ function MyTickets() {
 
   const tickets = data || [];
 
-  // Неоплаченные места одного события (обычно это один заказ) оплачиваются вместе.
   function pendingGroup(ticket) {
     return tickets.filter((item) => item.status === "Pending" && item.type === ticket.type && item.eventId === ticket.eventId);
   }
